@@ -293,20 +293,6 @@ function AppContent() {
                 <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
               )}
             </nav>
-            {/* Streak */}
-            <div className={`mt-6 p-4 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-gradient-to-br from-orange-100 to-pink-100'} border ${darkMode ? 'border-gray-700' : 'border-orange-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">🔥</span>
-                <span className="font-bold text-sm">Серия: {currentUser.streak} дней</span>
-              </div>
-              <div className="flex gap-1">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i < Math.min(currentUser.streak, 7) ? 'bg-gradient-to-r from-orange-400 to-pink-400 text-white' : darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                    {i < Math.min(currentUser.streak, 7) ? '✓' : ''}
-                  </div>
-                ))}
-              </div>
-            </div>
           </aside>
 
           {/* Mobile Menu */}
@@ -427,14 +413,6 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
           <div className="flex flex-wrap gap-4 mt-4">
             <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Уровень</div>
-              <div className="font-bold text-lg">{currentUser.level} 🌟</div>
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Серия</div>
-              <div className="font-bold text-lg">{currentUser.streak} 🔥</div>
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
               <div className="text-xs opacity-80">Значки</div>
               <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
             </div>
@@ -512,7 +490,7 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <StatCard emoji="🎯" label="До 110%" value={`${Math.max(0, 110 - personalPercent)}%`} color="from-pink-100 to-rose-100" darkColor="from-pink-900/30 to-rose-900/30" darkMode={darkMode} />
         <StatCard emoji="⭐" label="Значков" value={`${currentUser.achievements.length}`} color="from-amber-100 to-yellow-100" darkColor="from-amber-900/30 to-yellow-900/30" darkMode={darkMode} />
-        <StatCard emoji="🪙" label="Монет" value={currentUser.salesCoins.toLocaleString()} color="from-blue-100 to-cyan-100" darkColor="from-blue-900/30 to-cyan-900/30" darkMode={darkMode} />
+        <StatCard emoji="🪙" label="EAST Coins" value={currentUser.salesCoins.toLocaleString()} color="from-blue-100 to-cyan-100" darkColor="from-blue-900/30 to-cyan-900/30" darkMode={darkMode} />
         <StatCard emoji="📊" label="Место" value={`#${myRank || '-'}`} color="from-purple-100 to-violet-100" darkColor="from-purple-900/30 to-violet-900/30" darkMode={darkMode} />
       </div>
 
@@ -644,7 +622,7 @@ function ShopView({ darkMode, prizes, salesCoins, onSpend }: { darkMode: boolean
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-pink-500">🎁</span> Витрина наград</h2>
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${darkMode ? 'bg-yellow-900/30' : 'bg-gradient-to-r from-yellow-100 to-amber-100'}`}>
-          <span>🪙</span><span className="font-bold text-amber-600">{salesCoins} Sales Coins</span>
+          <span>🪙</span><span className="font-bold text-amber-600">{salesCoins} EAST Coins</span>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -726,7 +704,7 @@ function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boo
               <div className="font-bold text-sm truncate">{emp.name} {emp.id === currentUserId && <span className="text-pink-500 text-xs">(Вы)</span>}</div>
               <div className="text-xs opacity-60">
                 {emp.department && <span className="mr-2">📋 {emp.department}</span>}
-                Ур. {emp.level} • {emp.achievements.length} значков • 🔥 {emp.streak}
+                {emp.achievements.length} значков
               </div>
             </div>
             <div className="text-right">
@@ -799,11 +777,10 @@ function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { dar
 
 // ============ PROFILE VIEW ============
 function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { currentUser, updateCurrentUser } = useAppState();
+  const { currentUser, updateCurrentUser, isAdmin } = useAppState();
   if (!currentUser) return null;
 
-  const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
-  const xpPercent = (currentUser.xp / currentUser.xpToNext) * 100;
+  const admin = isAdmin();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser.name);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -876,39 +853,18 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
             )}
             <p className="opacity-80">{currentUser.email}</p>
             {currentUser.department && <p className="opacity-60 text-sm">📋 {currentUser.department}</p>}
-            <div className="flex items-center gap-4 mt-3">
-              <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">⭐ Уровень {currentUser.level}</span></div>
-              <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">🔥 {currentUser.streak} дней</span></div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-6 relative z-10">
-          <div className="flex justify-between text-sm mb-1">
-            <span>Опыт: {currentUser.xp} XP</span>
-            <span>{currentUser.xpToNext - currentUser.xp} XP до ур. {currentUser.level + 1}</span>
-          </div>
-          <div className="h-3 bg-white/20 rounded-full overflow-hidden">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${xpPercent}%` }} transition={{ duration: 1, delay: 0.5 }} className="h-full bg-gradient-to-r from-yellow-300 to-amber-400 rounded-full" />
           </div>
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-pink-500">{personalPercent}%</div>
-          <div className="text-xs opacity-60 mt-1">План</div>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl font-bold text-purple-500">{currentUser.achievements.length}</div>
           <div className="text-xs opacity-60 mt-1">Достижений</div>
         </div>
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl font-bold text-amber-500">{currentUser.salesCoins}</div>
-          <div className="text-xs opacity-60 mt-1">Монет</div>
-        </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
-          <div className="text-xs opacity-60 mt-1">План ₽</div>
+          <div className="text-xs opacity-60 mt-1">EAST Coins</div>
         </div>
       </div>
 
@@ -1053,7 +1009,7 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <h3 className="font-bold">{challenge.title}</h3>
-                    <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} XP</span>
+                    <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} 🪙</span>
                   </div>
                   <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
                   <div className="mt-3">
@@ -1490,7 +1446,7 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
                   className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
               </div>
               <div>
-                <label className="text-xs opacity-60">Награда (XP)</label>
+                <label className="text-xs opacity-60">Награда (EAST Coins)</label>
                 <input type="number" value={newChallengeXP} onChange={e => setNewChallengeXP(Number(e.target.value))}
                   className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
               </div>
@@ -1537,7 +1493,7 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
               <span className="text-xl">{challenge.emoji}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm">{challenge.title}</div>
-                <div className="text-xs opacity-60">{challenge.description} • +{challenge.xpReward} XP • {challenge.type}</div>
+                <div className="text-xs opacity-60">{challenge.description} • +{challenge.xpReward} 🪙 • {challenge.type}</div>
                 {challenge.assignedTo && challenge.assignedTo.length > 0 && (
                   <div className="text-xs opacity-40">Назначен: {challenge.assignedTo.length} пользовател(ей)</div>
                 )}
