@@ -275,8 +275,12 @@ function AppContent() {
                 {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} />}
               </button>
               {/* Profile */}
-              <button onClick={() => setCurrentView('profile')} className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-lg shadow-md">
-                {currentUser.avatar}
+              <button onClick={() => setCurrentView('profile')} className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-lg shadow-md overflow-hidden">
+                {currentUser.avatar.startsWith('data:image') ? (
+                  <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  currentUser.avatar
+                )}
               </button>
               {/* Logout */}
               <button onClick={logout} className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-all" title="Выйти">
@@ -705,7 +709,13 @@ function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boo
             const medals = ['🥈', '🥇', '🥉'];
             return (
               <motion.div key={emp.id} initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: positions[i] * 0.2 }} className="flex flex-col items-center">
-                <div className="text-3xl sm:text-4xl mb-2">{emp.avatar}</div>
+                <div className="text-3xl sm:text-4xl mb-2 w-12 h-12 rounded-full overflow-hidden flex items-center justify-center">
+                  {emp.avatar.startsWith('data:image') ? (
+                    <img src={emp.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    emp.avatar
+                  )}
+                </div>
                 <span className="text-lg">{medals[i]}</span>
                 <div className="font-bold text-sm mt-1">{emp.name}</div>
                 <div className="text-xs opacity-60">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
@@ -722,7 +732,13 @@ function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boo
           <motion.div key={emp.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
             className={`flex items-center gap-3 sm:gap-4 p-4 ${i !== sorted.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''} ${emp.id === currentUserId ? (darkMode ? 'bg-pink-900/20' : 'bg-pink-50') : ''}`}>
             <span className="w-8 text-center font-bold text-lg">{i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span>
-            <span className="text-2xl">{emp.avatar}</span>
+            <span className="text-2xl w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+              {emp.avatar.startsWith('data:image') ? (
+                <img src={emp.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+              ) : (
+                emp.avatar
+              )}
+            </span>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm truncate">{emp.name} {emp.id === currentUserId && <span className="text-pink-500 text-xs">(Вы)</span>}</div>
               <div className="text-xs opacity-60">Ур. {emp.level} • {emp.achievements.length} значков • 🔥 {emp.streak}</div>
@@ -800,6 +816,21 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
   const xpPercent = (currentUser.xp / currentUser.xpToNext) * 100;
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser.name);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
+  const avatarEmojis = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️', '👨‍💼', '👨‍🦰', '👨‍🦱', '🧔', '👨', '🧑', '🐱', '🐶', '🦊', '🐼', '🦁', '🐸', '🌸', '🌺', '🌻', '⭐', '🌙', '🔥', '💎', '🎀'];
+
+  const profileColors = [
+    { value: 'pink', label: 'Розовый', gradient: 'from-pink-400 via-purple-400 to-indigo-400' },
+    { value: 'purple', label: 'Фиолетовый', gradient: 'from-purple-400 via-indigo-400 to-blue-400' },
+    { value: 'blue', label: 'Синий', gradient: 'from-blue-400 via-cyan-400 to-teal-400' },
+    { value: 'green', label: 'Зелёный', gradient: 'from-green-400 via-emerald-400 to-teal-400' },
+    { value: 'amber', label: 'Золотой', gradient: 'from-amber-400 via-orange-400 to-red-400' },
+    { value: 'red', label: 'Красный', gradient: 'from-red-400 via-rose-400 to-pink-400' },
+    { value: 'cyan', label: 'Бирюзовый', gradient: 'from-cyan-400 via-blue-400 to-indigo-400' },
+    { value: 'rose', label: 'Коралловый', gradient: 'from-rose-400 via-pink-400 to-fuchsia-400' },
+  ];
 
   const handleSave = () => {
     updateCurrentUser({ name: editName });
@@ -807,13 +838,41 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
     showToast('✅ Профиль обновлён!');
   };
 
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        updateCurrentUser({ avatar: base64 });
+        setShowAvatarPicker(false);
+        showToast('🖼️ Аватар обновлён!');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const isImageAvatar = currentUser.avatar.startsWith('data:image');
+  const currentColor = profileColors.find(c => c.value === currentUser.profileColor) || profileColors[0];
+
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className={`rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : 'bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400'} text-white relative overflow-hidden`}>
+        className={`rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${currentColor.gradient}`} text-white relative overflow-hidden`}>
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="relative z-10 flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-5xl border-4 border-white/30">{currentUser.avatar}</div>
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-4 border-white/30 overflow-hidden cursor-pointer" onClick={() => setShowAvatarPicker(true)}>
+              {isImageAvatar ? (
+                <img src={currentUser.avatar} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-5xl">{currentUser.avatar}</span>
+              )}
+            </div>
+            <button onClick={() => setShowAvatarPicker(true)} className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg text-sm hover:scale-110 transition-transform">
+              📷
+            </button>
+          </div>
           <div className="text-center sm:text-left flex-1">
             {editing ? (
               <div className="flex items-center gap-2">
@@ -860,6 +919,85 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
           <div className="text-xs opacity-60 mt-1">План ₽</div>
+        </div>
+      </div>
+
+      {/* Avatar Picker Modal */}
+      <AnimatePresence>
+        {showAvatarPicker && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAvatarPicker(false)} />
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-2xl max-h-[80vh] overflow-y-auto`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold">Выберите аватар</h3>
+                <button onClick={() => setShowAvatarPicker(false)}><X size={24} /></button>
+              </div>
+              <div className="grid grid-cols-6 gap-3 mb-4">
+                {avatarEmojis.map((emoji) => (
+                  <button key={emoji} onClick={() => { updateCurrentUser({ avatar: emoji }); setShowAvatarPicker(false); showToast('✅ Аватар обновлён!'); }}
+                    className={`w-14 h-14 rounded-xl text-3xl flex items-center justify-center transition-all hover:scale-110 ${currentUser.avatar === emoji && !isImageAvatar ? 'bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 ring-2 ring-pink-400' : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                <p className="text-sm font-medium mb-2">📷 Или загрузите своё фото:</p>
+                <label className={`block w-full py-3 px-4 rounded-xl text-center cursor-pointer font-bold text-sm transition-all ${darkMode ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:shadow-lg' : 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:shadow-lg'}`}>
+                  Выбрать файл
+                  <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+                </label>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Color Picker Modal */}
+      <AnimatePresence>
+        {showColorPicker && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowColorPicker(false)} />
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className={`relative w-full max-w-sm rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold">Цвет профиля</h3>
+                <button onClick={() => setShowColorPicker(false)}><X size={24} /></button>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {profileColors.map((c) => (
+                  <button key={c.value} onClick={() => { updateCurrentUser({ profileColor: c.value }); setShowColorPicker(false); showToast('🎨 Цвет обновлён!'); }}
+                    className={`h-16 rounded-xl bg-gradient-to-r ${c.gradient} ring-3 transition-all ${currentUser.profileColor === c.value ? 'ring-offset-2 ring-pink-400 scale-110 shadow-lg' : 'ring-transparent hover:scale-105'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
+                    title={c.label} />
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Customization */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <h3 className="font-bold text-lg mb-4">🎨 Персонализация</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onClick={() => setShowAvatarPicker(true)}
+            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-xl overflow-hidden">
+              {isImageAvatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" /> : currentUser.avatar}
+            </div>
+            <div className="text-left">
+              <div className="font-bold text-sm">Изменить аватар</div>
+              <div className="text-xs opacity-60">Эмодзи или своё фото</div>
+            </div>
+          </button>
+          <button onClick={() => setShowColorPicker(true)}
+            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
+            <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${currentColor.gradient}`} />
+            <div className="text-left">
+              <div className="font-bold text-sm">Цвет профиля</div>
+              <div className="text-xs opacity-60">{currentColor.label}</div>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -987,7 +1125,7 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
   const [editFact, setEditFact] = useState(0);
   const [editName, setEditName] = useState('');
 
-  const employees = users.filter(u => u.role !== 'creator');
+  const employees = users.filter(u => u.id !== currentUser.id);
   const isCreator = currentUser.role === 'creator';
 
   const handleSave = (id: string) => {
@@ -1051,7 +1189,13 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
               </div>
             ) : (
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{emp.avatar}</span>
+                <span className="text-2xl w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+                  {emp.avatar.startsWith('data:image') ? (
+                    <img src={emp.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    emp.avatar
+                  )}
+                </span>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm flex items-center gap-2">
                     {emp.name}
