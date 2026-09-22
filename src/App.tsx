@@ -555,26 +555,19 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
 
 // ============ ACHIEVEMENTS VIEW ============
 function AchievementsView({ darkMode }: { darkMode: boolean }) {
-  const { currentUser } = useAppState();
+  const { currentUser, achievementTemplates } = useAppState();
   if (!currentUser) return null;
-
-  const allAchievements = [
-    { emoji: '🏆', name: 'План? Какой план?', desc: 'Выполнение плана более 110%', rarity: 'epic' as const },
-    { emoji: '🎉', name: 'Королева акций', desc: 'Продажи по акции месяца', rarity: 'rare' as const },
-    { emoji: '♻️', name: 'Алмаз среди скидок', desc: 'Продажи склада брака', rarity: 'rare' as const },
-    { emoji: '⭐', name: 'Амбассадор бренда', desc: 'Продажи выбранного бренда', rarity: 'uncommon' as const },
-    { emoji: '🌸', name: 'На волне успеха', desc: '2 месяца подряд', rarity: 'uncommon' as const },
-    { emoji: '🔥', name: 'Не остановить', desc: '3 месяца подряд', rarity: 'rare' as const },
-    { emoji: '👑', name: 'Живая легенда', desc: '6 месяцев подряд', rarity: 'epic' as const },
-    { emoji: '💎', name: 'Продажная богиня', desc: '12 месяцев подряд', rarity: 'legendary' as const },
-    { emoji: '🥇', name: 'Звезда отдела', desc: 'Лучший результат месяца', rarity: 'legendary' as const },
-    { emoji: '🐣', name: 'Первый полет', desc: 'Первый выполненный план', rarity: 'common' as const },
-    { emoji: '⏰', name: 'Мисс Пунктуальность', desc: 'Без просроченных дней', rarity: 'epic' as const },
-    { emoji: '📈', name: 'Ракета месяца', desc: 'Самый большой рост', rarity: 'epic' as const },
-  ];
-
-  const obtained = allAchievements.filter(a => currentUser.achievements.some(ua => ua.name === a.name || ua.emoji === a.emoji));
-  const locked = allAchievements.filter(a => !currentUser.achievements.some(ua => ua.name === a.name || ua.emoji === a.emoji));
+  
+  // Получаем только достижения, созданные администратором
+  const allAchievements = achievementTemplates;
+  
+  // Разделяем на полученные и недоступные
+  const obtained = allAchievements.filter(a => 
+    currentUser.achievements.some(ua => ua.id === a.id || ua.name === a.name)
+  );
+  const locked = allAchievements.filter(a => 
+    !currentUser.achievements.some(ua => ua.id === a.id || ua.name === a.name)
+  );
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -583,12 +576,12 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
         <span className={`text-sm font-medium px-3 py-1 rounded-full ${darkMode ? 'bg-gray-800' : 'bg-pink-100'}`}>{currentUser.achievements.length} получено</span>
       </div>
       <div>
-        <h3 className="font-bold text-lg mb-3">✨ Полученные ({currentUser.achievements.length})</h3>
-        {currentUser.achievements.length === 0 ? (
-          <p className="text-sm opacity-60 text-center py-8">Пока нет достижений. Начните выполнять план! 🚀</p>
+        <h3 className="font-bold text-lg mb-3">✨ Полученные ({obtained.length})</h3>
+        {obtained.length === 0 ? (
+          <p className="text-sm opacity-60 text-center py-8">Пока нет полученных достижений. Администратор может выдать вам достижение! 🚀</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {currentUser.achievements.map((ach, i) => (
+            {obtained.map((ach, i) => (
               <motion.div key={ach.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}
                 whileHover={{ scale: 1.03, y: -4 }}
                 className={`p-4 rounded-2xl border-2 ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].border} shadow-sm`}>
@@ -598,21 +591,23 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
                 </div>
                 <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
                 <p className="text-xs opacity-60 mt-1">{ach.description}</p>
-                <span className="text-xs opacity-50 mt-2">📅 {ach.date}</span>
+                <span className="text-xs opacity-50 mt-2">📅 {currentUser.achievements.find(ua => ua.id === ach.id)?.date || ach.createdAt.split('T')[0]}</span>
+                {ach.cost > 0 && <div className="text-xs text-amber-600 font-bold mt-1">💰 +{ach.cost} EAST Coins</div>}
               </motion.div>
             ))}
           </div>
         )}
       </div>
       <div>
-        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Lock size={18} className="text-gray-400" /> В процессе ({locked.length})</h3>
+        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Lock size={18} className="text-gray-400" /> Доступные для получения ({locked.length})</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {locked.map((ach, i) => (
-            <div key={i} className={`p-4 rounded-2xl border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-200 bg-gray-50'} opacity-60`}>
+            <div key={ach.id} className={`p-4 rounded-2xl border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-200 bg-gray-50'} opacity-60`}>
               <span className="text-4xl grayscale">{ach.emoji}</span>
               <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
-              <p className="text-xs opacity-60 mt-1">{ach.desc}</p>
+              <p className="text-xs opacity-60 mt-1">{ach.description}</p>
               <span className={`text-[10px] mt-2 inline-block px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-medium`}>{rarityColors[ach.rarity].label}</span>
+              {ach.cost > 0 && <div className="text-xs text-amber-600 font-bold mt-1">💰 +{ach.cost} EAST Coins</div>}
             </div>
           ))}
         </div>
