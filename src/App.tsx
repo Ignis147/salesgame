@@ -799,10 +799,10 @@ function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { dar
 
 // ============ PROFILE VIEW ============
 function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { currentUser, updateCurrentUser } = useAppState();
+  const { currentUser, updateCurrentUser, isAdmin } = useAppState();
   if (!currentUser) return null;
 
-  const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
+  const admin = isAdmin();
   const xpPercent = (currentUser.xp / currentUser.xpToNext) * 100;
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser.name);
@@ -894,11 +894,13 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
       </motion.div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-pink-500">{personalPercent}%</div>
-          <div className="text-xs opacity-60 mt-1">План</div>
-        </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+        {!admin && (
+          <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+            <div className="text-2xl font-bold text-pink-500">{currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0}%</div>
+            <div className="text-xs opacity-60 mt-1">План</div>
+          </div>
+        )}
+        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'} ${admin ? 'sm:col-start-1' : ''}`}>
           <div className="text-2xl font-bold text-purple-500">{currentUser.achievements.length}</div>
           <div className="text-xs opacity-60 mt-1">Достижений</div>
         </div>
@@ -906,10 +908,12 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
           <div className="text-2xl font-bold text-amber-500">{currentUser.salesCoins}</div>
           <div className="text-xs opacity-60 mt-1">Монет</div>
         </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
-          <div className="text-xs opacity-60 mt-1">План ₽</div>
-        </div>
+        {!admin && (
+          <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+            <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
+            <div className="text-xs opacity-60 mt-1">План ₽</div>
+          </div>
+        )}
       </div>
 
       {/* Avatar Picker Modal */}
