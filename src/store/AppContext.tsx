@@ -124,9 +124,7 @@ const CREATOR_PASSWORD = 'admin123';
 
 const AVATARS = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️'];
 
-const DEFAULT_ACHIEVEMENTS: UserAchievement[] = [
-  { id: '1', name: 'Добро пожаловать!', emoji: '🎉', description: 'Регистрация в SalesQuest', rarity: 'common', date: new Date().toISOString().split('T')[0] },
-];
+const DEFAULT_ACHIEVEMENTS: UserAchievement[] = [];
 
 const DEFAULT_MONTHLY_HISTORY: MonthlyRecord[] = [
   { month: 'Янв', plan: 400000, fact: 380000, percentage: 95 },
@@ -597,22 +595,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCurrentUser(updatedUser);
         }
 
+        // Add notification to user about achievement
+        const notif: Notification = {
+          id: generateId(),
+          userId,
+          title: 'Новое достижение!',
+          message: `Вы получили достижение "${template.name}" (+${template.cost} 🪙)`,
+          emoji: template.emoji,
+          time: 'Только что',
+          read: false,
+        };
+        setNotifications(prevNotifs => [notif, ...prevNotifs]);
+
         return updatedUser;
       }
       return u;
     }));
-
-    // Add notification to user
-    const notif: Notification = {
-      id: generateId(),
-      userId,
-      title: 'Новое достижение!',
-      message: `Вы получили достижение "${template.name}" (+${template.cost} 🪙)`,
-      emoji: template.emoji,
-      time: 'Только что',
-      read: false,
-    };
-    setNotifications(prev => [notif, ...prev]);
   }, [achievementTemplates, currentUser]);
 
   return (
