@@ -338,7 +338,7 @@ function AppContent() {
                 {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === currentUser.id || c.userId === 'global')} updateChallenge={updateChallenge} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
-                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} />}
+                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -1243,7 +1243,8 @@ function SettingsView({
   updateAchievementTemplate, 
   removeAchievementTemplate, 
   grantAchievementToUser,
-  users 
+  users,
+  currentUser
 }: { 
   darkMode: boolean; 
   showToast: (m: string) => void;
@@ -1253,6 +1254,7 @@ function SettingsView({
   removeAchievementTemplate: (id: string) => void;
   grantAchievementToUser: (userId: string, achievementId: string) => void;
   users: User[];
+  currentUser: User;
 }) {
   const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, planArchives, archiveCurrentMonthPlan } = useAppState();
 
@@ -1312,20 +1314,26 @@ function SettingsView({
   };
 
   const handleAddChallenge = () => {
+    console.log('Попытка создания челленджа:', { newChallengeTitle, newChallengeDesc, newChallengeXP, newChallengeTotal });
+    
     if (!newChallengeTitle.trim()) {
       showToast('❌ Введите название челленджа');
+      console.error('Ошибка: не заполнено название');
       return;
     }
     if (!newChallengeDesc.trim()) {
       showToast('❌ Введите описание челленджа');
+      console.error('Ошибка: не заполнено описание');
       return;
     }
     if (newChallengeXP <= 0) {
       showToast('❌ Награда должна быть больше 0');
+      console.error('Ошибка: награда меньше или равна 0');
       return;
     }
     if (newChallengeTotal <= 0) {
       showToast('❌ Цель должна быть больше 0');
+      console.error('Ошибка: цель меньше или равна 0');
       return;
     }
     
@@ -1343,7 +1351,10 @@ function SettingsView({
       type: newChallengeType,
       assignedTo: isGlobal ? undefined : selectedUserIds,
     };
+    
+    console.log('Созданный объект челленджа:', challenge);
     addChallenge(challenge);
+    console.log('Челлендж добавлен через addChallenge');
     
     // Send notifications to assigned users
     if (!isGlobal && selectedUserIds.length > 0) {
@@ -1358,8 +1369,13 @@ function SettingsView({
     setShowNewChallenge(false);
     setNewChallengeTitle('');
     setNewChallengeDesc('');
+    setNewChallengeEmoji('🎯');
+    setNewChallengeXP(50);
+    setNewChallengeTotal(10);
+    setNewChallengeType('daily');
+    setNewChallengeDeadline('');
     setSelectedUserIds([]);
-    showToast('🎯 Челлендж создан!');
+    showToast('✅ Челлендж успешно создан!');
   };
 
   const handleArchiveMonth = () => {
