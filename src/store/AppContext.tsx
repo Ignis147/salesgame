@@ -50,7 +50,7 @@ export interface Prize {
 
 export interface Challenge {
   id: string;
-  userId: string;
+  userId: string; // 'global' для общих, или ID пользователя для персональных
   title: string;
   description: string;
   emoji: string;
@@ -59,6 +59,7 @@ export interface Challenge {
   total: number;
   deadline: string;
   type: 'daily' | 'weekly' | 'seasonal';
+  assignedTo?: string[]; // ID пользователей, которым назначен челлендж (если не global)
 }
 
 export interface Notification {
@@ -78,6 +79,19 @@ export interface DepartmentPlan {
   lastMonth: number;
   brandOfMonth: string;
   promoOfMonth: string;
+  month: string; // текущий месяц (например, "Июнь 2024")
+  year: number;
+}
+
+export interface MonthlyPlanArchive {
+  id: string;
+  month: string;
+  year: number;
+  totalPlan: number;
+  totalFact: number;
+  percentage: number;
+  employeePlans: { userId: string; name: string; plan: number; fact: number; percentage: number }[];
+  archivedAt: string;
 }
 
 export interface CompanySettings {
@@ -152,6 +166,8 @@ function getDefaultPrizes(): Prize[] {
 }
 
 function getDefaultDepartmentPlan(): DepartmentPlan {
+  const now = new Date();
+  const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   return {
     total: 3000000,
     current: 0,
@@ -159,6 +175,8 @@ function getDefaultDepartmentPlan(): DepartmentPlan {
     lastMonth: 82.3,
     brandOfMonth: 'Samsung',
     promoOfMonth: 'Летняя распродажа',
+    month: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
+    year: now.getFullYear(),
   };
 }
 
@@ -198,6 +216,7 @@ interface AppState {
   notifications: Notification[];
   departmentPlan: DepartmentPlan;
   companySettings: CompanySettings;
+  planArchives: MonthlyPlanArchive[];
 
   updatePrizes: (prizes: Prize[]) => void;
   addPrize: (prize: Prize) => void;
@@ -206,6 +225,9 @@ interface AppState {
 
   updateChallenges: (challenges: Challenge[]) => void;
   updateChallenge: (id: string, data: Partial<Challenge>) => void;
+  addChallenge: (challenge: Challenge) => void;
+  removeChallenge: (id: string) => void;
+  assignChallenge: (challengeId: string, userIds: string[]) => void;
 
   addNotification: (notif: Notification) => void;
   markNotificationRead: (id: string) => void;
@@ -213,6 +235,8 @@ interface AppState {
 
   updateDepartmentPlan: (data: Partial<DepartmentPlan>) => void;
   updateCompanySettings: (data: Partial<CompanySettings>) => void;
+  
+  archiveCurrentMonthPlan: () => void;
 
   spendCoins: (amount: number) => void;
 }
@@ -266,6 +290,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [challenges, setChallenges] = useState<Challenge[]>(() => loadFromStorage('sq_challenges', []));
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('sq_notifications', []));
   const [departmentPlan, setDepartmentPlan] = useState<DepartmentPlan>(() => loadFromStorage('sq_dept_plan', getDefaultDepartmentPlan()));
+  const [planArchives, setPlanArchives] = useState<MonthlyPlanArchive[]>(() => loadFromStorage('sq_plan_archives', []));
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const settings = loadFromStorage('sq_settings', getDefaultSettings());
     // Миграция: если старое название, обновить
@@ -282,6 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('sq_challenges', challenges); }, [challenges]);
   useEffect(() => { saveToStorage('sq_notifications', notifications); }, [notifications]);
   useEffect(() => { saveToStorage('sq_dept_plan', departmentPlan); }, [departmentPlan]);
+  useEffect(() => { saveToStorage('sq_plan_archives', planArchives); }, [planArchives]);
   useEffect(() => { saveToStorage('sq_settings', companySettings); }, [companySettings]);
 
   // Recalculate department plan when users change
@@ -444,6 +470,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => prev.map(n => n.userId === currentUser.id ? { ...n, read: true } : n));
   }, [currentUser]);
 
+  const addChallenge = useCallback((challenge: Challenge) => {
+    setChallenges(prev => [...prev, challenge]);
+  }, []);
+
+  const removeChallenge = useCallback((id: string) => {
+    setChallenges(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const assignChallenge = useCallback((challengeId: string, userIds: string[]) => {
+    setChallenges(prev => prev.map(c => 
+      c.id === challengeId ? { ...c, assignedTo: userIds } : c
+    ));
+  }, []);
+
+  const archiveCurrentMonthPlan = useCallback(() => {
+    const now = new Date();
+    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    const currentMonthIndex = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Check if already archived for this month
+    const alreadyArchived = planArchives.some(
+      a => a.month === monthNames[currentMonthIndex] && a.year === currentYear
+    );
+    if (alreadyArchived) {
+      return; // Already archived
+    }
+
+    const employees = users.filter(u => u.role === 'employee');
+    const totalPlan = employees.reduce((s, u) => s + u.plan, 0);
+    const totalFact = employees.reduce((s, u) => s + u.fact, 0);
+    const percentage = totalPlan > 0 ? Math.round((totalFact / totalPlan) * 1000) / 10 : 0;
+
+    const employeePlans = employees.map(u => ({
+      userId: u.id,
+      name: u.name,
+      plan: u.plan,
+      fact: u.fact,
+      percentage: u.plan > 0 ? Math.round((u.fact / u.plan) * 1000) / 10 : 0,
+    }));
+
+    const archive: MonthlyPlanArchive = {
+      id: generateId(),
+      month: monthNames[currentMonthIndex],
+      year: currentYear,
+      totalPlan,
+      totalFact,
+      percentage,
+      employeePlans,
+      archivedAt: new Date().toISOString(),
+    };
+
+    setPlanArchives(prev => [...prev, archive]);
+
+    // Reset current month plan for next month
+    employees.forEach(emp => {
+      setUsers(prev => prev.map(u => 
+        u.id === emp.id ? { ...u, plan: 0, fact: 0 } : u
+      ));
+    });
+
+    setDepartmentPlan(prev => ({
+      ...prev,
+      total: 0,
+      current: 0,
+      percentage: 0,
+      lastMonth: percentage,
+    }));
+  }, [planArchives, users]);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -463,17 +559,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notifications,
       departmentPlan,
       companySettings,
+      planArchives,
       updatePrizes: setPrizes,
       addPrize: (prize) => setPrizes(prev => [...prev, prize]),
       updatePrize: (id, data) => setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...data } : p)),
       removePrize: (id) => setPrizes(prev => prev.filter(p => p.id !== id)),
       updateChallenges: setChallenges,
       updateChallenge: (id, data) => setChallenges(prev => prev.map(c => c.id === id ? { ...c, ...data } : c)),
+      addChallenge,
+      removeChallenge,
+      assignChallenge,
       addNotification,
       markNotificationRead,
       markAllNotificationsRead,
       updateDepartmentPlan,
       updateCompanySettings,
+      archiveCurrentMonthPlan,
       spendCoins,
     }}>
       {children}
