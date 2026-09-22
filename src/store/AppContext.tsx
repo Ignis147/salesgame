@@ -163,7 +163,7 @@ function getDefaultDepartmentPlan(): DepartmentPlan {
 
 function getDefaultSettings(): CompanySettings {
   return {
-    name: 'SalesQuest',
+    name: 'EastAsia',
     mainColor: 'pink',
     soundsEnabled: true,
     pushEnabled: true,
@@ -257,7 +257,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [challenges, setChallenges] = useState<Challenge[]>(() => loadFromStorage('sq_challenges', []));
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('sq_notifications', []));
   const [departmentPlan, setDepartmentPlan] = useState<DepartmentPlan>(() => loadFromStorage('sq_dept_plan', getDefaultDepartmentPlan()));
-  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => loadFromStorage('sq_settings', getDefaultSettings()));
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
+    const settings = loadFromStorage('sq_settings', getDefaultSettings());
+    // Миграция: если старое название, обновить
+    if (settings.name === 'SalesQuest') {
+      settings.name = 'EastAsia';
+    }
+    return settings;
+  });
 
   // Persist to localStorage
   useEffect(() => { saveToStorage('sq_users', users); }, [users]);
