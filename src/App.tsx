@@ -173,20 +173,8 @@ function AppContent() {
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
   const admin = isAdmin();
 
-  // Show confetti on first load
-  useEffect(() => {
-    if (isAuthenticated && companySettings.confettiEnabled) {
-      const timer = setTimeout(() => {
-        setShowAchievementPopup({
-          id: 'welcome', name: 'С возвращением!', emoji: '👋',
-          description: `Рады видеть вас, ${currentUser?.name}!`,
-          rarity: 'common', date: new Date().toISOString().split('T')[0]
-        });
-        setShowConfetti(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated]);
+  // Show confetti only when receiving an admin-granted achievement (handled in grantAchievementToUser)
+  // No automatic confetti on page load
 
   useEffect(() => {
     if (showConfetti) {
@@ -415,10 +403,6 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles size={20} />
-            <span className="text-sm font-medium opacity-90">Добро пожаловать!</span>
-          </div>
           <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
           <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
           <div className="flex flex-wrap gap-4 mt-4">
@@ -802,6 +786,14 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
     { value: 'red', label: 'Красный', gradient: 'from-red-400 via-rose-400 to-pink-400' },
     { value: 'cyan', label: 'Бирюзовый', gradient: 'from-cyan-400 via-blue-400 to-indigo-400' },
     { value: 'rose', label: 'Коралловый', gradient: 'from-rose-400 via-pink-400 to-fuchsia-400' },
+    { value: 'teal', label: 'Мятный', gradient: 'from-teal-400 via-green-400 to-emerald-400' },
+    { value: 'indigo', label: 'Индиго', gradient: 'from-indigo-400 via-purple-400 to-pink-400' },
+    { value: 'orange', label: 'Оранжевый', gradient: 'from-orange-400 via-amber-400 to-yellow-400' },
+    { value: 'lime', label: 'Лайм', gradient: 'from-lime-400 via-green-400 to-teal-400' },
+    { value: 'sky', label: 'Небесный', gradient: 'from-sky-400 via-blue-400 to-indigo-400' },
+    { value: 'violet', label: 'Фиалковый', gradient: 'from-violet-400 via-fuchsia-400 to-pink-400' },
+    { value: 'slate', label: 'Серый', gradient: 'from-slate-400 via-gray-400 to-zinc-400' },
+    { value: 'emerald', label: 'Изумрудный', gradient: 'from-emerald-400 via-green-400 to-cyan-400' },
   ];
 
   const handleSave = () => {
