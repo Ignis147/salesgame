@@ -1312,9 +1312,25 @@ function SettingsView({
   };
 
   const handleAddChallenge = () => {
-    if (!newChallengeTitle.trim()) return;
+    if (!newChallengeTitle.trim()) {
+      showToast('❌ Введите название челленджа');
+      return;
+    }
+    if (!newChallengeDesc.trim()) {
+      showToast('❌ Введите описание челленджа');
+      return;
+    }
+    if (newChallengeXP <= 0) {
+      showToast('❌ Награда должна быть больше 0');
+      return;
+    }
+    if (newChallengeTotal <= 0) {
+      showToast('❌ Цель должна быть больше 0');
+      return;
+    }
+    
     const isGlobal = selectedUserIds.length === 0;
-    const challenge = {
+    const challenge: Challenge = {
       id: Date.now().toString(),
       userId: isGlobal ? 'global' : (currentUser?.id || 'global'),
       title: newChallengeTitle,
