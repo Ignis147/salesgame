@@ -1666,6 +1666,133 @@ function SettingsView({
           ))}
         </div>
       </div>
+
+      {/* Achievements Management */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold">🏆 Управление достижениями ({achievementTemplates.length})</h3>
+        </div>
+        
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setManageAchievementsTab('list')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${manageAchievementsTab === 'list' ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            Список достижений
+          </button>
+          <button onClick={() => setManageAchievementsTab('create')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${manageAchievementsTab === 'create' ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            Создать достижение
+          </button>
+          <button onClick={() => setManageAchievementsTab('grant')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${manageAchievementsTab === 'grant' ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+            Выдать достижение
+          </button>
+        </div>
+
+        {/* List Tab */}
+        {manageAchievementsTab === 'list' && (
+          <div className="space-y-2">
+            {achievementTemplates.length === 0 ? (
+              <p className="text-sm opacity-60 text-center py-8">Пока нет созданных достижений. Создайте первое! 🚀</p>
+            ) : (
+              achievementTemplates.map(ach => (
+                <div key={ach.id} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <span className="text-2xl">{ach.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{ach.name}</div>
+                    <div className="text-xs opacity-60">{ach.description} • 🪙 {ach.cost} • {ach.rarity}</div>
+                  </div>
+                  <button onClick={() => { removeAchievementTemplate(ach.id); showToast('Достижение удалено'); }}
+                    className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-red-500`}><Trash2 size={14} /></button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Create Tab */}
+        {manageAchievementsTab === 'create' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium opacity-70">Название достижения</label>
+                <input type="text" value={newAchievementName} onChange={e => setNewAchievementName(e.target.value)} placeholder="Например: Продавец месяца"
+                  className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
+              <div>
+                <label className="text-sm font-medium opacity-70">Эмодзи</label>
+                <input type="text" value={newAchievementEmoji} onChange={e => setNewAchievementEmoji(e.target.value)} placeholder="🏆"
+                  className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
+              <div>
+                <label className="text-sm font-medium opacity-70">Стоимость (EAST Coins)</label>
+                <input type="number" value={newAchievementCost} onChange={e => setNewAchievementCost(Number(e.target.value))} placeholder="50"
+                  className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
+              <div>
+                <label className="text-sm font-medium opacity-70">Редкость</label>
+                <select value={newAchievementRarity} onChange={e => setNewAchievementRarity(e.target.value as any)}
+                  className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}>
+                  <option value="common">Обычное (Common)</option>
+                  <option value="uncommon">Необычное (Uncommon)</option>
+                  <option value="rare">Редкое (Rare)</option>
+                  <option value="epic">Эпическое (Epic)</option>
+                  <option value="legendary">Легендарное (Legendary)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium opacity-70">URL картинки (опционально)</label>
+              <input type="text" value={newAchievementImage} onChange={e => setNewAchievementImage(e.target.value)} placeholder="https://example.com/image.png"
+                className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+            </div>
+            <div>
+              <label className="text-sm font-medium opacity-70">Описание</label>
+              <textarea value={newAchievementDesc} onChange={e => setNewAchievementDesc(e.target.value)} placeholder="Описание достижения..." rows={3}
+                className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+            </div>
+            <button onClick={handleAddAchievement} className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-bold flex items-center gap-2 hover:shadow-lg transition-all">
+              <Plus size={18} /> Создать достижение
+            </button>
+          </motion.div>
+        )}
+
+        {/* Grant Tab */}
+        {manageAchievementsTab === 'grant' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            {achievementTemplates.length === 0 ? (
+              <p className="text-sm opacity-60 text-center py-8">Сначала создайте достижения, чтобы выдавать их сотрудникам! 📝</p>
+            ) : (
+              <>
+                <div>
+                  <label className="text-sm font-medium opacity-70">Выберите сотрудника</label>
+                  <select value={grantUserId} onChange={e => setGrantUserId(e.target.value)}
+                    className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}>
+                    <option value="">-- Выберите сотрудника --</option>
+                    {users.filter(u => u.role === 'employee').map(user => (
+                      <option key={user.id} value={user.id}>{user.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium opacity-70">Выберите достижение</label>
+                  <select value={grantAchievementId} onChange={e => setGrantAchievementId(e.target.value)}
+                    className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}>
+                    <option value="">-- Выберите достижение --</option>
+                    {achievementTemplates.map(ach => (
+                      <option key={ach.id} value={ach.id}>{ach.emoji} {ach.name} (+{ach.cost} 🪙)</option>
+                    ))}
+                  </select>
+                </div>
+                <button onClick={handleGrantAchievement} disabled={!grantUserId || !grantAchievementId}
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Award size={18} /> Выдать достижение
+                </button>
+              </>
+            )}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
