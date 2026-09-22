@@ -1,135 +1,237 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import {
-  rarityColors, type Achievement
-} from './data/mockData';
-import { AppProvider, useAppState } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, CREATOR_PASSWORD, ADMIN_EMAILS, ADMIN_PASSWORD, type User, type UserAchievement } from './store/AppContext';
+import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
   Target, TrendingUp, Crown, Sparkles, Star,
-  Medal, Calendar, Award, Zap, ArrowLeft,
-  Menu, X, Check, Lock, Coins, Trash2, Edit3, Plus, Save, ChevronDown
+  Medal, Award, Zap,
+  Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield
 } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
-type View = 'home' | 'achievements' | 'shop' | 'leaderboard' | 'analytics' | 'profile' | 'challenges' | 'battlepass' | 'notifications' | 'team' | 'settings';
+type View = 'home' | 'achievements' | 'shop' | 'leaderboard' | 'analytics' | 'profile' | 'challenges' | 'notifications' | 'team' | 'settings';
 
-// Toast notification component
+// ============ COLOR MAP ============
+const COLOR_MAP: Record<string, { gradient: string; light: string; hex: string }> = {
+  pink: { gradient: 'from-pink-400 via-purple-400 to-blue-400', light: 'from-pink-50 via-purple-50 to-blue-50', hex: '#ec4899' },
+  purple: { gradient: 'from-purple-400 via-indigo-400 to-pink-400', light: 'from-purple-50 via-indigo-50 to-pink-50', hex: '#8b5cf6' },
+  blue: { gradient: 'from-blue-400 via-cyan-400 to-purple-400', light: 'from-blue-50 via-cyan-50 to-purple-50', hex: '#3b82f6' },
+  green: { gradient: 'from-green-400 via-emerald-400 to-teal-400', light: 'from-green-50 via-emerald-50 to-teal-50', hex: '#22c55e' },
+  amber: { gradient: 'from-amber-400 via-orange-400 to-yellow-400', light: 'from-amber-50 via-orange-50 to-yellow-50', hex: '#f59e0b' },
+  red: { gradient: 'from-red-400 via-rose-400 to-pink-400', light: 'from-red-50 via-rose-50 to-pink-50', hex: '#ef4444' },
+};
+
+// ============ TOAST ============
 function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   useEffect(() => {
     const t = setTimeout(onClose, 3000);
     return () => clearTimeout(t);
   }, [onClose]);
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 50, scale: 0.9 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 50, scale: 0.9 }}
-      className="fixed bottom-24 lg:bottom-8 left-1/2 -translate-x-1/2 z-50"
-    >
+    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.9 }} className="fixed bottom-24 lg:bottom-8 left-1/2 -translate-x-1/2 z-50">
       <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-2 font-medium text-sm">
-        <Check size={18} />
-        {message}
+        <Check size={18} />{message}
       </div>
     </motion.div>
   );
 }
 
+// ============ AUTH SCREEN ============
+function AuthScreen({ darkMode }: { darkMode: boolean }) {
+  const { login, register, companySettings } = useAppState();
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [showHint, setShowHint] = useState(false);
+
+  const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (isLogin) {
+      const result = login(email, password);
+      if (!result.success) setError(result.error || 'Ошибка входа');
+    } else {
+      const result = register(email, password, name);
+      if (!result.success) setError(result.error || 'Ошибка регистрации');
+    }
+  };
+
+  return (
+    <div className={`min-h-screen flex items-center justify-center p-4 bg-gradient-to-br ${color.light} dark:from-gray-900 dark:via-gray-900 dark:to-gray-800`}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className={`w-full max-w-md rounded-3xl p-8 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
+      >
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-3">💎</div>
+          <h1 className={`text-2xl font-bold bg-gradient-to-r ${color.gradient} bg-clip-text text-transparent`}>
+            {companySettings.name}
+          </h1>
+          <p className="text-sm opacity-60 mt-1">Геймификация отдела продаж</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label className="text-sm font-medium opacity-70">Имя</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Ваше имя"
+                className={`w-full mt-1 px-4 py-3 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
+              />
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium opacity-70">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="email@example.com"
+              required
+              className={`w-full mt-1 px-4 py-3 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium opacity-70">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Минимум 6 символов"
+              required
+              className={`w-full mt-1 px-4 py-3 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-xl">{error}</div>
+          )}
+
+          <button
+            type="submit"
+            className={`w-full py-3 bg-gradient-to-r ${color.gradient} text-white rounded-xl font-bold hover:shadow-lg transition-all`}
+          >
+            {isLogin ? 'Войти' : 'Зарегистрироваться'}
+          </button>
+        </form>
+
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+            className="text-sm text-pink-500 font-medium hover:underline"
+          >
+            {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
+          </button>
+        </div>
+
+        <button
+          onClick={() => setShowHint(!showHint)}
+          className="mt-4 w-full text-center text-xs opacity-50 hover:opacity-100 transition-opacity"
+        >
+          {showHint ? 'Скрыть подсказки' : 'Показать подсказки для входа'}
+        </button>
+
+        {showHint && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`mt-3 p-3 rounded-xl text-xs space-y-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <div className="font-bold mb-1">👑 Создатель:</div>
+            <div>{CREATOR_EMAIL} / {CREATOR_PASSWORD}</div>
+            <div className="font-bold mt-2 mb-1">🛡️ Администраторы:</div>
+            {ADMIN_EMAILS.map(e => <div key={e}>{e} / {ADMIN_PASSWORD}</div>)}
+            <div className="font-bold mt-2 mb-1">👤 Или зарегистрируйте нового пользователя</div>
+          </motion.div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+// ============ MAIN APP CONTENT ============
 function AppContent() {
   const {
-    currentUser, teamMembers, departmentPlan, prizes, challenges,
-    notifications, battlePass, companySettings, salesCoins, userRole,
-    updateCurrentUser, updateTeamMember, removeTeamMember, addTeamMember,
-    updateDepartmentPlan, updatePrize, removePrize, addPrize,
-    spendCoins, markNotificationRead, markAllNotificationsRead,
-    updateCompanySettings, setUserRole,
+    currentUser, users, isAuthenticated, isAdmin, logout,
+    prizes, challenges, notifications, departmentPlan, companySettings,
+    updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
+    addPrize, updatePrize, removePrize,
+    updateChallenge,
+    markNotificationRead, markAllNotificationsRead,
+    updateDepartmentPlan, updateCompanySettings, spendCoins,
   } = useAppState();
 
   const [currentView, setCurrentView] = useState<View>('home');
   const [darkMode, setDarkMode] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showAchievementPopup, setShowAchievementPopup] = useState<Achievement | null>(null);
+  const [showAchievementPopup, setShowAchievementPopup] = useState<UserAchievement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(
-    notifications.filter(n => !n.read).length
-  );
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-  }, []);
+  const showToast = useCallback((msg: string) => setToast(msg), []);
 
+  const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
+  const admin = isAdmin();
+
+  // Show confetti on first load
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowAchievementPopup({
-        id: 'new', name: 'Мисс Пунктуальность', emoji: '⏰',
-        description: 'Выполнение плана без просроченных дней',
-        rarity: 'epic', date: new Date().toISOString().split('T')[0]
-      });
-      setShowConfetti(true);
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isAuthenticated && companySettings.confettiEnabled) {
+      const timer = setTimeout(() => {
+        setShowAchievementPopup({
+          id: 'welcome', name: 'С возвращением!', emoji: '👋',
+          description: `Рады видеть вас, ${currentUser?.name}!`,
+          rarity: 'common', date: new Date().toISOString().split('T')[0]
+        });
+        setShowConfetti(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (showConfetti) {
-      const timer = setTimeout(() => setShowConfetti(false), 5000);
+      const timer = setTimeout(() => setShowConfetti(false), 4000);
       return () => clearTimeout(timer);
     }
   }, [showConfetti]);
 
-  useEffect(() => {
-    setUnreadNotifications(notifications.filter(n => !n.read).length);
-  }, [notifications]);
+  if (!isAuthenticated || !currentUser) {
+    return <AuthScreen darkMode={darkMode} />;
+  }
+
+  const userNotifications = notifications.filter(n => n.userId === currentUser.id);
+  const unreadCount = userNotifications.filter(n => !n.read).length;
+  const employees = users.filter(u => u.role === 'employee' || u.role === 'admin');
 
   const themeClass = darkMode ? 'dark' : '';
 
-  const handleMarkNotifRead = (id: string) => {
-    markNotificationRead(id);
-  };
-
-  const handleMarkAllRead = () => {
-    markAllNotificationsRead();
-  };
-
-  const handleSpendCoins = (amount: number, prizeName: string) => {
-    if (salesCoins >= amount) {
-      spendCoins(amount);
-      showToast(`🎉 Вы обменяли "${prizeName}"! Ожидайте подтверждения.`);
-    }
-  };
-
   return (
     <div className={`${themeClass} min-h-screen font-['Nunito',sans-serif]`}>
-      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 text-gray-800'}`}>
+      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : `bg-gradient-to-br ${color.light} text-gray-800`}`}>
         {showConfetti && <ReactConfetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={200} colors={['#ff69b4', '#ffd700', '#87ceeb', '#98fb98', '#dda0dd']} />}
 
         {/* Achievement Popup */}
         <AnimatePresence>
           {showAchievementPopup && (
-            <motion.div
-              initial={{ opacity: 0, y: -100, scale: 0.5 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -100, scale: 0.5 }}
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-50"
-            >
-              <div className={`relative p-6 rounded-3xl shadow-2xl border-2 ${rarityColors[showAchievementPopup.rarity].bg} ${rarityColors[showAchievementPopup.rarity].border} backdrop-blur-xl`}>
+            <motion.div initial={{ opacity: 0, y: -100, scale: 0.5 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -100, scale: 0.5 }} className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+              <div className={`relative p-6 rounded-3xl shadow-2xl border-2 ${rarityColors[showAchievementPopup.rarity].bg} ${rarityColors[showAchievementPopup.rarity].border}`}>
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs px-4 py-1 rounded-full font-bold">
-                  ✨ НОВОЕ ДОСТИЖЕНИЕ ✨
+                  ✨ ДОСТИЖЕНИЕ ✨
                 </div>
                 <div className="text-center mt-2">
                   <div className="text-5xl mb-2 animate-bounce">{showAchievementPopup.emoji}</div>
                   <h3 className="font-bold text-lg">{showAchievementPopup.name}</h3>
                   <p className={`text-sm ${rarityColors[showAchievementPopup.rarity].text}`}>{rarityColors[showAchievementPopup.rarity].label}</p>
                   <p className="text-sm opacity-70 mt-1">{showAchievementPopup.description}</p>
-                  <button
-                    onClick={() => setShowAchievementPopup(null)}
-                    className="mt-3 px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full text-sm font-bold hover:shadow-lg transition-all"
-                  >
+                  <button onClick={() => setShowAchievementPopup(null)} className="mt-3 px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-full text-sm font-bold">
                     Ура! 🎉
                   </button>
                 </div>
@@ -138,10 +240,7 @@ function AppContent() {
           )}
         </AnimatePresence>
 
-        {/* Toast */}
-        <AnimatePresence>
-          {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-        </AnimatePresence>
+        <AnimatePresence>{toast && <Toast message={toast} onClose={() => setToast(null)} />}</AnimatePresence>
 
         {/* Header */}
         <header className={`sticky top-0 z-40 backdrop-blur-xl ${darkMode ? 'bg-gray-900/80 border-gray-700' : 'bg-white/70 border-white/50'} border-b`}>
@@ -152,87 +251,63 @@ function AppContent() {
               </button>
               <div className="flex items-center gap-2">
                 <span className="text-2xl">💎</span>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500 bg-clip-text text-transparent hidden sm:block">
+                <h1 className={`text-xl font-bold bg-gradient-to-r ${color.gradient} bg-clip-text text-transparent hidden sm:block`}>
                   {companySettings.name}
                 </h1>
               </div>
             </div>
-
             <div className="flex items-center gap-2 sm:gap-4">
-              {/* Role Switch */}
+              {/* Role Badge */}
               <div className={`hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${darkMode ? 'bg-gray-800' : 'bg-gradient-to-r from-pink-100 to-purple-100'}`}>
-                <button
-                  onClick={() => setUserRole('employee')}
-                  className={`px-2 py-1 rounded-full transition-all ${userRole === 'employee' ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' : ''}`}
-                >
-                  👩‍💼 Сотрудник
-                </button>
-                <button
-                  onClick={() => setUserRole('manager')}
-                  className={`px-2 py-1 rounded-full transition-all ${userRole === 'manager' ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' : ''}`}
-                >
-                  👑 Руководитель
-                </button>
+                {admin ? '👑 Админ' : '👤 Участник'}
               </div>
-
               {/* Coins */}
               <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full ${darkMode ? 'bg-yellow-900/30' : 'bg-gradient-to-r from-yellow-100 to-amber-100'}`}>
                 <span className="text-sm">🪙</span>
-                <span className="font-bold text-sm text-amber-600">{salesCoins}</span>
+                <span className="font-bold text-sm text-amber-600">{currentUser.salesCoins}</span>
               </div>
-
               {/* Notifications */}
-              <button
-                onClick={() => setCurrentView('notifications')}
-                className="relative p-2 rounded-full hover:bg-pink-100 dark:hover:bg-gray-800 transition-all"
-              >
+              <button onClick={() => setCurrentView('notifications')} className="relative p-2 rounded-full hover:bg-pink-100 dark:hover:bg-gray-800 transition-all">
                 <Bell size={20} />
-                {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                    {unreadNotifications}
-                  </span>
-                )}
+                {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">{unreadCount}</span>}
               </button>
-
-              {/* Theme Toggle */}
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-full hover:bg-pink-100 dark:hover:bg-gray-800 transition-all"
-              >
+              {/* Theme */}
+              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-pink-100 dark:hover:bg-gray-800 transition-all">
                 {darkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} />}
               </button>
-
-              {/* Avatar */}
-              <button
-                onClick={() => setCurrentView('profile')}
-                className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-lg shadow-md"
-              >
+              {/* Profile */}
+              <button onClick={() => setCurrentView('profile')} className="w-9 h-9 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-lg shadow-md">
                 {currentUser.avatar}
+              </button>
+              {/* Logout */}
+              <button onClick={logout} className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition-all" title="Выйти">
+                <LogOut size={18} />
               </button>
             </div>
           </div>
         </header>
 
         <div className="max-w-7xl mx-auto flex">
-          {/* Sidebar - Desktop */}
+          {/* Sidebar */}
           <aside className="hidden lg:block w-64 min-h-[calc(100vh-64px)] p-4 sticky top-16">
             <nav className="space-y-1">
               <SidebarItem icon={<Home size={20} />} label="Главная" active={currentView === 'home'} onClick={() => setCurrentView('home')} />
               <SidebarItem icon={<Trophy size={20} />} label="Достижения" active={currentView === 'achievements'} onClick={() => setCurrentView('achievements')} />
               <SidebarItem icon={<Zap size={20} />} label="Челленджи" active={currentView === 'challenges'} onClick={() => setCurrentView('challenges')} />
               <SidebarItem icon={<Gift size={20} />} label="Магазин наград" active={currentView === 'shop'} onClick={() => setCurrentView('shop')} />
-              <SidebarItem icon={<Crown size={20} />} label="Боевой пропуск" active={currentView === 'battlepass'} onClick={() => setCurrentView('battlepass')} />
               <SidebarItem icon={<Medal size={20} />} label="Рейтинг" active={currentView === 'leaderboard'} onClick={() => setCurrentView('leaderboard')} />
-              {userRole === 'manager' && (
+              {admin && (
                 <>
                   <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} />
                   <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
+                  <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
                 </>
               )}
-              <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+              {!admin && (
+                <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
+              )}
             </nav>
-
-            {/* Streak Card */}
+            {/* Streak */}
             <div className={`mt-6 p-4 rounded-2xl ${darkMode ? 'bg-gray-800' : 'bg-gradient-to-br from-orange-100 to-pink-100'} border ${darkMode ? 'border-gray-700' : 'border-orange-200'}`}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">🔥</span>
@@ -240,8 +315,8 @@ function AppContent() {
               </div>
               <div className="flex gap-1">
                 {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i < Math.min(currentUser.streak % 7 || 7, 5) ? 'bg-gradient-to-r from-orange-400 to-pink-400 text-white' : darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                    {i < Math.min(currentUser.streak % 7 || 7, 5) ? '✓' : ''}
+                  <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i < Math.min(currentUser.streak, 7) ? 'bg-gradient-to-r from-orange-400 to-pink-400 text-white' : darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    {i < Math.min(currentUser.streak, 7) ? '✓' : ''}
                   </div>
                 ))}
               </div>
@@ -251,59 +326,49 @@ function AppContent() {
           {/* Mobile Menu */}
           <AnimatePresence>
             {showMobileMenu && (
-              <motion.div
-                initial={{ opacity: 0, x: -300 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -300 }}
-                className="fixed inset-0 z-50 lg:hidden"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 lg:hidden">
                 <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileMenu(false)} />
-                <div className={`absolute left-0 top-0 bottom-0 w-72 p-4 ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow-2xl overflow-y-auto`}>
+                <motion.div initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }} className={`absolute left-0 top-0 bottom-0 w-72 p-4 ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow-2xl overflow-y-auto`}>
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="font-bold text-lg bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">{companySettings.name}</h2>
+                    <h2 className={`font-bold text-lg bg-gradient-to-r ${color.gradient} bg-clip-text text-transparent`}>{companySettings.name}</h2>
                     <button onClick={() => setShowMobileMenu(false)}><X size={24} /></button>
                   </div>
                   <nav className="space-y-1">
                     <SidebarItem icon={<Home size={20} />} label="Главная" active={currentView === 'home'} onClick={() => { setCurrentView('home'); setShowMobileMenu(false); }} />
                     <SidebarItem icon={<Trophy size={20} />} label="Достижения" active={currentView === 'achievements'} onClick={() => { setCurrentView('achievements'); setShowMobileMenu(false); }} />
                     <SidebarItem icon={<Zap size={20} />} label="Челленджи" active={currentView === 'challenges'} onClick={() => { setCurrentView('challenges'); setShowMobileMenu(false); }} />
-                    <SidebarItem icon={<Gift size={20} />} label="Магазин наград" active={currentView === 'shop'} onClick={() => { setCurrentView('shop'); setShowMobileMenu(false); }} />
-                    <SidebarItem icon={<Crown size={20} />} label="Боевой пропуск" active={currentView === 'battlepass'} onClick={() => { setCurrentView('battlepass'); setShowMobileMenu(false); }} />
+                    <SidebarItem icon={<Gift size={20} />} label="Магазин" active={currentView === 'shop'} onClick={() => { setCurrentView('shop'); setShowMobileMenu(false); }} />
                     <SidebarItem icon={<Medal size={20} />} label="Рейтинг" active={currentView === 'leaderboard'} onClick={() => { setCurrentView('leaderboard'); setShowMobileMenu(false); }} />
-                    {userRole === 'manager' && (
+                    {admin && (
                       <>
                         <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => { setCurrentView('analytics'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setShowMobileMenu(false); }} />
+                        <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
                       </>
                     )}
-                    <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
                   </nav>
-                </div>
+                  <button onClick={() => { logout(); setShowMobileMenu(false); }} className="w-full mt-6 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <LogOut size={20} /> Выйти
+                  </button>
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Main Content */}
+          {/* Main */}
           <main className="flex-1 p-4 sm:p-6 min-h-[calc(100vh-64px)]">
             <AnimatePresence mode="wait">
-              <motion.div
-                key={currentView}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                {currentView === 'home' && <HomeView darkMode={darkMode} userRole={userRole} showToast={showToast} />}
+              <motion.div key={currentView + currentUser.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
+                {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} />}
                 {currentView === 'achievements' && <AchievementsView darkMode={darkMode} />}
-                {currentView === 'shop' && <ShopView darkMode={darkMode} onSpend={handleSpendCoins} />}
-                {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} />}
-                {currentView === 'analytics' && <AnalyticsView darkMode={darkMode} showToast={showToast} />}
+                {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name) => { spendCoins(amount); showToast(`🎉 Вы обменяли "${name}"!`); }} />}
+                {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
+                {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'battlepass' && <BattlePassView darkMode={darkMode} />}
-                {currentView === 'notifications' && <NotificationsView darkMode={darkMode} onMarkRead={handleMarkNotifRead} onMarkAllRead={handleMarkAllRead} />}
-                {currentView === 'team' && <TeamView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'settings' && <SettingsView darkMode={darkMode} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === currentUser.id || c.userId === 'global')} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
+                {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
+                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} />}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -324,56 +389,47 @@ function AppContent() {
   );
 }
 
-function App() {
-  return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
-  );
-}
-
-// Sidebar Item Component
+// ============ SIDEBAR ITEM ============
 function SidebarItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-        active
-          ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/25'
-          : 'hover:bg-pink-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
-      }`}
-    >
-      {icon}
-      {label}
+    <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${active ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg shadow-pink-500/25' : 'hover:bg-pink-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+      {icon}{label}
     </button>
   );
 }
 
-// Mobile Nav Item
 function MobileNavItem({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${active ? 'text-pink-500' : 'text-gray-400'}`}>
-      {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      {icon}<span className="text-[10px] font-medium">{label}</span>
     </button>
   );
 }
 
-// ==================== HOME VIEW ====================
-function HomeView({ darkMode, userRole, showToast }: { darkMode: boolean; userRole: string; showToast: (m: string) => void }) {
-  const { currentUser, departmentPlan, teamMembers, salesCoins } = useAppState();
-  const personalPercent = Math.round((currentUser.fact / currentUser.plan) * 100);
-  const remaining = currentUser.plan - currentUser.fact;
-  const nextReward = 110;
+// ============ HOME VIEW ============
+function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast }: { darkMode: boolean; admin: boolean; employees: User[]; departmentPlan: any; color: any; showToast: (m: string) => void }) {
+  const { currentUser, updateCurrentUser } = useAppState();
+  if (!currentUser) return null;
+
+  const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
+  const remaining = Math.max(0, currentUser.plan - currentUser.fact);
+  const myRank = [...employees].sort((a, b) => (b.fact / Math.max(b.plan, 1)) - (a.fact / Math.max(a.plan, 1))).findIndex(e => e.id === currentUser.id) + 1;
+
+  // Handle fact update for employee
+  const [editFact, setEditFact] = useState(false);
+  const [factValue, setFactValue] = useState(currentUser.fact);
+
+  const handleSaveFact = () => {
+    updateCurrentUser({ fact: factValue });
+    setEditFact(false);
+    showToast('✅ Результат обновлён!');
+  };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      {/* Welcome Banner */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : 'bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400'} text-white`}
-      >
+      {/* Welcome Banner - Individual for each user */}
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${color.gradient}`} text-white`}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
         <div className="relative z-10">
@@ -396,74 +452,53 @@ function HomeView({ darkMode, userRole, showToast }: { darkMode: boolean; userRo
               <div className="text-xs opacity-80">Значки</div>
               <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
             </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <div className="text-xs opacity-80">Место</div>
+              <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
+            </div>
           </div>
         </div>
       </motion.div>
 
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        {/* Department Plan */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-          className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}
-        >
+        {/* Department Plan (visible to all) */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
+          className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center text-white">
-                <Users size={20} />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center text-white"><Users size={20} /></div>
               <div>
                 <h3 className="font-bold text-sm">План отдела</h3>
-                <p className="text-xs opacity-60">{departmentPlan.employees} сотрудников</p>
+                <p className="text-xs opacity-60">{employees.length} участников</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                {departmentPlan.percentage}%
-              </div>
-            </div>
+            <div className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">{departmentPlan.percentage}%</div>
           </div>
           <ProgressBar percentage={departmentPlan.percentage} color="from-blue-400 to-purple-400" />
           <div className="flex justify-between mt-3 text-xs opacity-60">
             <span>{(departmentPlan.current / 1000000).toFixed(2)}M ₽</span>
             <span>{(departmentPlan.total / 1000000).toFixed(1)}M ₽</span>
           </div>
-          <div className="flex items-center gap-1 mt-2 text-xs">
-            <TrendingUp size={14} className="text-green-500" />
-            <span className="text-green-500 font-medium">+{(departmentPlan.percentage - departmentPlan.lastMonth).toFixed(1)}%</span>
-            <span className="opacity-60">к прошлому месяцу</span>
-          </div>
         </motion.div>
 
         {/* Personal Plan */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-          className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}
-        >
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+          className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-pink-400 to-rose-400 flex items-center justify-center text-white">
-                <Target size={20} />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-pink-400 to-rose-400 flex items-center justify-center text-white"><Target size={20} /></div>
               <div>
                 <h3 className="font-bold text-sm">Мой план</h3>
                 <p className="text-xs opacity-60">Июнь 2024</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className={`text-2xl font-bold ${personalPercent >= 110 ? 'text-green-500' : personalPercent >= 100 ? 'text-blue-500' : 'text-orange-500'}`}>
-                {personalPercent}%
-              </div>
-            </div>
+            <div className={`text-2xl font-bold ${personalPercent >= 110 ? 'text-green-500' : personalPercent >= 100 ? 'text-blue-500' : 'text-orange-500'}`}>{personalPercent}%</div>
           </div>
-          <ProgressBar percentage={Math.min(personalPercent, 100)} color={personalPercent >= 110 ? 'from-green-400 to-emerald-400' : personalPercent >= 100 ? 'from-blue-400 to-cyan-400' : 'from-orange-400 to-pink-400'} />
+          <ProgressBar percentage={Math.min(personalPercent, 100)} color={personalPercent >= 110 ? 'from-green-400 to-emerald-400' : 'from-orange-400 to-pink-400'} />
           <div className="flex justify-between mt-3 text-xs opacity-60">
-            <span>{(currentUser.fact / 1000).toFixed(0)}K ₽</span>
-            <span>{(currentUser.plan / 1000).toFixed(0)}K ₽</span>
+            <span>{(currentUser.fact / 1000).toFixed(0)}K ₽ факт</span>
+            <span>{(currentUser.plan / 1000).toFixed(0)}K ₽ план</span>
           </div>
           {remaining > 0 && (
             <div className="mt-2 text-xs">
@@ -471,96 +506,52 @@ function HomeView({ darkMode, userRole, showToast }: { darkMode: boolean; userRo
               <span className="font-bold text-pink-500">{(remaining / 1000).toFixed(0)}K ₽</span>
             </div>
           )}
+          {/* Update fact button */}
+          {!editFact ? (
+            <button onClick={() => { setFactValue(currentUser.fact); setEditFact(true); }} className="mt-3 text-xs text-pink-500 font-medium hover:underline">
+              📝 Обновить результат
+            </button>
+          ) : (
+            <div className="mt-3 flex items-center gap-2">
+              <input type="number" value={factValue} onChange={e => setFactValue(Number(e.target.value))}
+                className={`flex-1 px-3 py-1.5 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              <button onClick={handleSaveFact} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold">✓</button>
+              <button onClick={() => setEditFact(false)} className={`px-3 py-1.5 rounded-lg text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>✕</button>
+            </div>
+          )}
         </motion.div>
       </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard emoji="🎯" label="До награды" value={`${Math.max(0, nextReward - personalPercent)}%`} color="from-pink-100 to-rose-100" darkColor="from-pink-900/30 to-rose-900/30" darkMode={darkMode} />
+        <StatCard emoji="🎯" label="До 110%" value={`${Math.max(0, 110 - personalPercent)}%`} color="from-pink-100 to-rose-100" darkColor="from-pink-900/30 to-rose-900/30" darkMode={darkMode} />
         <StatCard emoji="⭐" label="Значков" value={`${currentUser.achievements.length}`} color="from-amber-100 to-yellow-100" darkColor="from-amber-900/30 to-yellow-900/30" darkMode={darkMode} />
-        <StatCard emoji="🪙" label="Монет" value={salesCoins.toLocaleString()} color="from-blue-100 to-cyan-100" darkColor="from-blue-900/30 to-cyan-900/30" darkMode={darkMode} />
-        <StatCard emoji="📊" label="Место" value={`#${teamMembers.sort((a, b) => (b.fact / b.plan) - (a.fact / a.plan)).findIndex(m => m.id === currentUser.id) + 1}`} color="from-purple-100 to-violet-100" darkColor="from-purple-900/30 to-violet-900/30" darkMode={darkMode} />
+        <StatCard emoji="🪙" label="Монет" value={currentUser.salesCoins.toLocaleString()} color="from-blue-100 to-cyan-100" darkColor="from-blue-900/30 to-cyan-900/30" darkMode={darkMode} />
+        <StatCard emoji="📊" label="Место" value={`#${myRank || '-'}`} color="from-purple-100 to-violet-100" darkColor="from-purple-900/30 to-violet-900/30" darkMode={darkMode} />
       </div>
 
-      {/* Next Achievements */}
+      {/* My Recent Achievements */}
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-amber-500">⭐</span>
-          Ближайшие достижения
+          <span className="text-purple-500">🏅</span>
+          Мои последние значки
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            { emoji: '🏆', name: 'План? Какой план?', desc: 'Выполни план на 110%', progress: personalPercent, target: 110, rarity: 'epic' as const },
-            { emoji: '🔥', name: 'Не остановить', desc: '3 месяца подряд', progress: 2, target: 3, rarity: 'rare' as const },
-            { emoji: '📈', name: 'Ракета месяца', desc: 'Рост > 20% к прошлому', progress: 15, target: 20, rarity: 'epic' as const },
-          ].map((ach, i) => (
-            <motion.div
-              key={i}
-              whileHover={{ scale: 1.02 }}
-              className={`p-4 rounded-xl border ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].border} transition-all`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{ach.emoji}</span>
-                <div>
-                  <div className="font-bold text-sm">{ach.name}</div>
-                  <div className="text-xs opacity-60">{ach.desc}</div>
-                </div>
-              </div>
-              <ProgressBar percentage={(ach.progress / ach.target) * 100} color="from-pink-400 to-purple-400" small />
-              <div className="text-xs mt-1 opacity-60">{ach.progress}/{ach.target}</div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Badges & Top Employees */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <span className="text-purple-500">🏅</span>
-            Последние значки
-          </h3>
-          <div className="grid grid-cols-4 gap-3">
-            {currentUser.achievements.slice(-4).reverse().map((ach) => (
-              <motion.div
-                key={ach.id}
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                className={`aspect-square rounded-xl ${rarityColors[ach.rarity].bg} border ${rarityColors[ach.rarity].border} flex flex-col items-center justify-center p-2 cursor-pointer`}
-              >
+        {currentUser.achievements.length === 0 ? (
+          <p className="text-sm opacity-60 text-center py-4">Пока нет значков. Выполняйте план, чтобы получить первые! 🌟</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            {currentUser.achievements.slice(-6).reverse().map((ach) => (
+              <motion.div key={ach.id} whileHover={{ scale: 1.1, rotate: 5 }}
+                className={`aspect-square rounded-xl ${rarityColors[ach.rarity].bg} border ${rarityColors[ach.rarity].border} flex flex-col items-center justify-center p-2 cursor-pointer`}>
                 <span className="text-2xl sm:text-3xl">{ach.emoji}</span>
-                <span className="text-[9px] sm:text-[10px] font-medium text-center mt-1 leading-tight">{ach.name}</span>
+                <span className="text-[8px] sm:text-[10px] font-medium text-center mt-1 leading-tight">{ach.name}</span>
               </motion.div>
             ))}
           </div>
-        </div>
-
-        <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            <span className="text-amber-500">👑</span>
-            ТОП месяца
-          </h3>
-          <div className="space-y-3">
-            {[...teamMembers]
-              .sort((a, b) => (b.fact / b.plan) - (a.fact / a.plan))
-              .slice(0, 3)
-              .map((emp, i) => (
-                <div key={emp.id} className={`flex items-center gap-3 p-3 rounded-xl ${i === 0 ? (darkMode ? 'bg-amber-900/20' : 'bg-gradient-to-r from-amber-50 to-yellow-50') : ''}`}>
-                  <span className="text-lg font-bold w-6">{['🥇', '🥈', '🥉'][i]}</span>
-                  <span className="text-xl">{emp.avatar}</span>
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{emp.name}</div>
-                    <div className="text-xs opacity-60">Ур. {emp.level} • {emp.achievements.length} значков</div>
-                  </div>
-                  <div className="font-bold text-sm">
-                    {Math.round((emp.fact / emp.plan) * 100)}%
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Monthly Chart */}
+      {/* My Dynamics Chart */}
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
           <span className="text-blue-500">📊</span>
@@ -588,112 +579,67 @@ function HomeView({ darkMode, userRole, showToast }: { darkMode: boolean; userRo
   );
 }
 
-// ==================== ACHIEVEMENTS VIEW ====================
+// ============ ACHIEVEMENTS VIEW ============
 function AchievementsView({ darkMode }: { darkMode: boolean }) {
   const { currentUser } = useAppState();
+  if (!currentUser) return null;
 
   const allAchievements = [
-    { emoji: '🏆', name: 'План? Какой план? Я уже впереди!', desc: 'Выполнение плана более 110%', rarity: 'epic' as const, obtained: currentUser.achievements.some(a => a.name.includes('План?')), date: '20 Фев 2024' },
-    { emoji: '🎉', name: 'Королева акций', desc: 'Продажи по акции месяца', rarity: 'rare' as const, obtained: currentUser.achievements.some(a => a.name === 'Королева акций'), date: '15 Мар 2024' },
-    { emoji: '♻️', name: 'Алмаз среди скидок', desc: 'Продажи склада брака и уценки', rarity: 'rare' as const, obtained: currentUser.achievements.some(a => a.name === 'Алмаз среди скидок'), date: '10 Май 2024' },
-    { emoji: '⭐', name: 'Амбассадор бренда', desc: 'Продажи выбранного бренда', rarity: 'uncommon' as const, obtained: false },
-    { emoji: '🌸', name: 'На волне успеха', desc: '2 месяца подряд', rarity: 'uncommon' as const, obtained: currentUser.achievements.some(a => a.name === 'На волне успеха'), date: '1 Мар 2024' },
-    { emoji: '🔥', name: 'Не остановить', desc: '3 месяца подряд', rarity: 'rare' as const, obtained: false },
-    { emoji: '👑', name: 'Живая легенда', desc: '6 месяцев подряд', rarity: 'epic' as const, obtained: false },
-    { emoji: '💎', name: 'Продажная богиня', desc: '12 месяцев подряд', rarity: 'legendary' as const, obtained: false },
-    { emoji: '🥇', name: 'Звезда отдела', desc: 'Лучший результат месяца', rarity: 'legendary' as const, obtained: currentUser.achievements.some(a => a.name === 'Звезда отдела'), date: '30 Апр 2024' },
-    { emoji: '👑', name: 'Императрица продаж', desc: 'Лучший результат квартала', rarity: 'legendary' as const, obtained: false },
-    { emoji: '✨', name: 'Легенда компании', desc: 'Лучший результат года', rarity: 'legendary' as const, obtained: false },
-    { emoji: '🐣', name: 'Первый полет', desc: 'Первый выполненный план', rarity: 'common' as const, obtained: currentUser.achievements.some(a => a.name === 'Первый полет'), date: '15 Янв 2024' },
-    { emoji: '🚀', name: 'Теперь меня не остановить', desc: 'Первый перевыполненный план', rarity: 'uncommon' as const, obtained: false },
-    { emoji: '⏰', name: 'Мисс Пунктуальность', desc: 'Без просроченных дней', rarity: 'epic' as const, obtained: currentUser.achievements.some(a => a.name === 'Мисс Пунктуальность'), date: '1 Апр 2024' },
-    { emoji: '📈', name: 'Ракета месяца', desc: 'Самый большой рост', rarity: 'epic' as const, obtained: false },
+    { emoji: '🏆', name: 'План? Какой план?', desc: 'Выполнение плана более 110%', rarity: 'epic' as const },
+    { emoji: '🎉', name: 'Королева акций', desc: 'Продажи по акции месяца', rarity: 'rare' as const },
+    { emoji: '♻️', name: 'Алмаз среди скидок', desc: 'Продажи склада брака', rarity: 'rare' as const },
+    { emoji: '⭐', name: 'Амбассадор бренда', desc: 'Продажи выбранного бренда', rarity: 'uncommon' as const },
+    { emoji: '🌸', name: 'На волне успеха', desc: '2 месяца подряд', rarity: 'uncommon' as const },
+    { emoji: '🔥', name: 'Не остановить', desc: '3 месяца подряд', rarity: 'rare' as const },
+    { emoji: '👑', name: 'Живая легенда', desc: '6 месяцев подряд', rarity: 'epic' as const },
+    { emoji: '💎', name: 'Продажная богиня', desc: '12 месяцев подряд', rarity: 'legendary' as const },
+    { emoji: '🥇', name: 'Звезда отдела', desc: 'Лучший результат месяца', rarity: 'legendary' as const },
+    { emoji: '🐣', name: 'Первый полет', desc: 'Первый выполненный план', rarity: 'common' as const },
+    { emoji: '⏰', name: 'Мисс Пунктуальность', desc: 'Без просроченных дней', rarity: 'epic' as const },
+    { emoji: '📈', name: 'Ракета месяца', desc: 'Самый большой рост', rarity: 'epic' as const },
   ];
 
-  const obtained = allAchievements.filter(a => a.obtained);
-  const locked = allAchievements.filter(a => !a.obtained);
+  const obtained = allAchievements.filter(a => currentUser.achievements.some(ua => ua.name === a.name || ua.emoji === a.emoji));
+  const locked = allAchievements.filter(a => !currentUser.achievements.some(ua => ua.name === a.name || ua.emoji === a.emoji));
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <span className="text-amber-500">🏆</span>
-          Коллекция достижений
-        </h2>
-        <span className={`text-sm font-medium px-3 py-1 rounded-full ${darkMode ? 'bg-gray-800' : 'bg-pink-100'}`}>
-          {obtained.length}/{allAchievements.length} 🏅
-        </span>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-amber-500">🏆</span> Мои достижения</h2>
+        <span className={`text-sm font-medium px-3 py-1 rounded-full ${darkMode ? 'bg-gray-800' : 'bg-pink-100'}`}>{currentUser.achievements.length} получено</span>
       </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(['common', 'uncommon', 'rare', 'epic', 'legendary'] as const).map(rarity => {
-          const count = obtained.filter(a => a.rarity === rarity).length;
-          const total = allAchievements.filter(a => a.rarity === rarity).length;
-          return (
-            <div key={rarity} className={`px-3 py-1.5 rounded-full text-xs font-medium ${rarityColors[rarity].bg} ${rarityColors[rarity].border} border`}>
-              {rarityColors[rarity].label} {count}/{total}
-            </div>
-          );
-        })}
-      </div>
-
       <div>
-        <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-          <span className="text-pink-500">✨</span>
-          Полученные ({obtained.length})
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {obtained.map((ach, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              whileHover={{ scale: 1.03, y: -4 }}
-              className={`p-4 rounded-2xl border-2 ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].border} cursor-pointer shadow-sm hover:shadow-md transition-all relative overflow-hidden`}
-            >
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative">
+        <h3 className="font-bold text-lg mb-3">✨ Полученные ({currentUser.achievements.length})</h3>
+        {currentUser.achievements.length === 0 ? (
+          <p className="text-sm opacity-60 text-center py-8">Пока нет достижений. Начните выполнять план! 🚀</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {currentUser.achievements.map((ach, i) => (
+              <motion.div key={ach.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}
+                whileHover={{ scale: 1.03, y: -4 }}
+                className={`p-4 rounded-2xl border-2 ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].border} shadow-sm`}>
                 <div className="flex items-start justify-between">
                   <span className="text-4xl">{ach.emoji}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-bold`}>
-                    {rarityColors[ach.rarity].label}
-                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-bold`}>{rarityColors[ach.rarity].label}</span>
                 </div>
                 <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
-                <p className="text-xs opacity-60 mt-1">{ach.desc}</p>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-xs opacity-50">📅 {ach.date}</span>
-                  <button className="text-xs text-pink-500 font-medium">Поделиться ↗</button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                <p className="text-xs opacity-60 mt-1">{ach.description}</p>
+                <span className="text-xs opacity-50 mt-2">📅 {ach.date}</span>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
-
       <div>
-        <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-          <Lock size={18} className="text-gray-400" />
-          В процессе ({locked.length})
-        </h3>
+        <h3 className="font-bold text-lg mb-3 flex items-center gap-2"><Lock size={18} className="text-gray-400" /> В процессе ({locked.length})</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {locked.map((ach, i) => (
-            <motion.div
-              key={i}
-              whileHover={{ scale: 1.02 }}
-              className={`p-4 rounded-2xl border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-200 bg-gray-50'} opacity-60 cursor-pointer transition-all`}
-            >
-              <div className="flex items-start justify-between">
-                <span className="text-4xl grayscale">{ach.emoji}</span>
-                <Lock size={16} className="text-gray-400" />
-              </div>
+            <div key={i} className={`p-4 rounded-2xl border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-200 bg-gray-50'} opacity-60`}>
+              <span className="text-4xl grayscale">{ach.emoji}</span>
               <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
               <p className="text-xs opacity-60 mt-1">{ach.desc}</p>
-              <span className={`text-[10px] mt-2 inline-block px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-medium`}>
-                {rarityColors[ach.rarity].label}
-              </span>
-            </motion.div>
+              <span className={`text-[10px] mt-2 inline-block px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-medium`}>{rarityColors[ach.rarity].label}</span>
+            </div>
           ))}
         </div>
       </div>
@@ -701,9 +647,8 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
   );
 }
 
-// ==================== SHOP VIEW ====================
-function ShopView({ darkMode, onSpend }: { darkMode: boolean; onSpend: (amount: number, name: string) => void }) {
-  const { prizes, salesCoins } = useAppState();
+// ============ SHOP VIEW ============
+function ShopView({ darkMode, prizes, salesCoins, onSpend }: { darkMode: boolean; prizes: any[]; salesCoins: number; onSpend: (amount: number, name: string) => void }) {
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const categories = ['Все', ...new Set(prizes.map(p => p.category))];
   const filtered = selectedCategory === 'Все' ? prizes : prizes.filter(p => p.category === selectedCategory);
@@ -711,59 +656,31 @@ function ShopView({ darkMode, onSpend }: { darkMode: boolean; onSpend: (amount: 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <span className="text-pink-500">🎁</span>
-          Витрина наград
-        </h2>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-pink-500">🎁</span> Витрина наград</h2>
         <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${darkMode ? 'bg-yellow-900/30' : 'bg-gradient-to-r from-yellow-100 to-amber-100'}`}>
-          <span>🪙</span>
-          <span className="font-bold text-amber-600">{salesCoins} Sales Coins</span>
+          <span>🪙</span><span className="font-bold text-amber-600">{salesCoins} Sales Coins</span>
         </div>
       </div>
-
       <div className="flex flex-wrap gap-2">
         {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              selectedCategory === cat
-                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg'
-                : darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-white text-gray-600 hover:bg-pink-50 border border-gray-200'
-            }`}
-          >
+          <button key={cat} onClick={() => setSelectedCategory(cat)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedCategory === cat ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
             {cat}
           </button>
         ))}
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((prize, i) => (
-          <motion.div
-            key={prize.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
+          <motion.div key={prize.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
             whileHover={{ scale: 1.03, y: -4 }}
-            className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm hover:shadow-lg transition-all`}
-          >
+            className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm hover:shadow-lg transition-all`}>
             <div className="text-4xl mb-3">{prize.emoji}</div>
             <h3 className="font-bold">{prize.name}</h3>
             <p className="text-sm opacity-60 mt-1">{prize.description}</p>
             <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center gap-1">
-                <span>🪙</span>
-                <span className="font-bold text-amber-600">{prize.cost}</span>
-              </div>
-              <button
-                onClick={() => onSpend(prize.cost, prize.name)}
-                disabled={salesCoins < prize.cost}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
-                  salesCoins >= prize.cost
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:shadow-lg'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
+              <div className="flex items-center gap-1"><span>🪙</span><span className="font-bold text-amber-600">{prize.cost}</span></div>
+              <button onClick={() => onSpend(prize.cost, prize.name)} disabled={salesCoins < prize.cost}
+                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${salesCoins >= prize.cost ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
                 {salesCoins >= prize.cost ? 'Обменять' : 'Мало монет'}
               </button>
             </div>
@@ -774,18 +691,13 @@ function ShopView({ darkMode, onSpend }: { darkMode: boolean; onSpend: (amount: 
   );
 }
 
-// ==================== LEADERBOARD VIEW ====================
-function LeaderboardView({ darkMode }: { darkMode: boolean }) {
-  const { teamMembers, currentUser } = useAppState();
-  const sorted = [...teamMembers].sort((a, b) => (b.fact / b.plan) - (a.fact / a.plan));
+// ============ LEADERBOARD VIEW ============
+function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boolean; employees: User[]; currentUserId: string }) {
+  const sorted = [...employees].sort((a, b) => (b.fact / Math.max(b.plan, 1)) - (a.fact / Math.max(a.plan, 1)));
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        <span className="text-amber-500">🏅</span>
-        Таблица лидеров
-      </h2>
-
+      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-amber-500">🏅</span> Таблица лидеров</h2>
       {sorted.length >= 3 && (
         <div className="flex items-end justify-center gap-3 sm:gap-6 py-6">
           {[sorted[1], sorted[0], sorted[2]].map((emp, i) => {
@@ -793,17 +705,11 @@ function LeaderboardView({ darkMode }: { darkMode: boolean }) {
             const heights = ['h-24', 'h-32', 'h-20'];
             const medals = ['🥈', '🥇', '🥉'];
             return (
-              <motion.div
-                key={emp.id}
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: positions[i] * 0.2 }}
-                className="flex flex-col items-center"
-              >
+              <motion.div key={emp.id} initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: positions[i] * 0.2 }} className="flex flex-col items-center">
                 <div className="text-3xl sm:text-4xl mb-2">{emp.avatar}</div>
                 <span className="text-lg">{medals[i]}</span>
                 <div className="font-bold text-sm mt-1">{emp.name}</div>
-                <div className="text-xs opacity-60">{Math.round((emp.fact / emp.plan) * 100)}%</div>
+                <div className="text-xs opacity-60">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
                 <div className={`${heights[i]} w-20 sm:w-24 mt-2 rounded-t-xl bg-gradient-to-t ${i === 1 ? 'from-amber-400 to-yellow-300' : i === 0 ? 'from-gray-300 to-gray-200' : 'from-orange-300 to-amber-200'} flex items-center justify-center`}>
                   <span className="text-2xl font-bold text-white/80">{positions[i] + 1}</span>
                 </div>
@@ -812,77 +718,57 @@ function LeaderboardView({ darkMode }: { darkMode: boolean }) {
           })}
         </div>
       )}
-
       <div className={`rounded-2xl border overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         {sorted.map((emp, i) => (
-          <motion.div
-            key={emp.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className={`flex items-center gap-3 sm:gap-4 p-4 ${i !== sorted.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''} ${emp.id === currentUser.id ? (darkMode ? 'bg-pink-900/20' : 'bg-pink-50') : ''}`}
-          >
-            <span className="w-8 text-center font-bold text-lg">
-              {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
-            </span>
+          <motion.div key={emp.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
+            className={`flex items-center gap-3 sm:gap-4 p-4 ${i !== sorted.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''} ${emp.id === currentUserId ? (darkMode ? 'bg-pink-900/20' : 'bg-pink-50') : ''}`}>
+            <span className="w-8 text-center font-bold text-lg">{i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span>
             <span className="text-2xl">{emp.avatar}</span>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm truncate">{emp.name} {emp.id === currentUser.id && <span className="text-pink-500 text-xs">(Вы)</span>}</div>
-              <div className="flex items-center gap-2 text-xs opacity-60">
-                <span>Ур. {emp.level}</span>
-                <span>•</span>
-                <span>{emp.achievements.length} значков</span>
-                <span>•</span>
-                <span>🔥 {emp.streak}</span>
-              </div>
+              <div className="font-bold text-sm truncate">{emp.name} {emp.id === currentUserId && <span className="text-pink-500 text-xs">(Вы)</span>}</div>
+              <div className="text-xs opacity-60">Ур. {emp.level} • {emp.achievements.length} значков • 🔥 {emp.streak}</div>
             </div>
             <div className="text-right">
-              <div className="font-bold text-sm">{Math.round((emp.fact / emp.plan) * 100)}%</div>
+              <div className="font-bold text-sm">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
               <div className="text-xs opacity-60">{(emp.fact / 1000).toFixed(0)}K ₽</div>
             </div>
           </motion.div>
         ))}
+        {sorted.length === 0 && <p className="text-center py-8 opacity-60">Пока нет участников</p>}
       </div>
     </div>
   );
 }
 
-// ==================== ANALYTICS VIEW ====================
-function AnalyticsView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { currentUser, teamMembers, departmentPlan } = useAppState();
-  const chartData = currentUser.monthlyHistory;
-  const teamData = teamMembers.map(m => ({ name: m.name.split(' ')[0], percent: Math.round((m.fact / m.plan) * 100) }));
+// ============ ANALYTICS VIEW (Admin) ============
+function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { darkMode: boolean; employees: User[]; departmentPlan: any; showToast: (m: string) => void }) {
+  const teamData = employees.map(m => ({ name: m.name.split(' ')[0], percent: Math.round((m.fact / Math.max(m.plan, 1)) * 100) }));
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        <span className="text-blue-500">📊</span>
-        Аналитика
-      </h2>
-
+      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-blue-500">📊</span> Аналитика</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl mb-1">📊</div>
           <div className="text-2xl font-bold">{departmentPlan.percentage}%</div>
-          <div className="text-xs opacity-60">Выполнение отдела</div>
+          <div className="text-xs opacity-60">Отдел</div>
         </div>
         <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl mb-1">👥</div>
-          <div className="text-2xl font-bold">{teamMembers.filter(m => (m.fact / m.plan) >= 1).length}/{teamMembers.length}</div>
+          <div className="text-2xl font-bold">{employees.filter(m => (m.fact / Math.max(m.plan, 1)) >= 1).length}/{employees.length}</div>
           <div className="text-xs opacity-60">Выполнили план</div>
         </div>
         <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl mb-1">🌟</div>
-          <div className="text-2xl font-bold">{teamMembers.filter(m => (m.fact / m.plan) >= 1.1).length}</div>
+          <div className="text-2xl font-bold">{employees.filter(m => (m.fact / Math.max(m.plan, 1)) >= 1.1).length}</div>
           <div className="text-xs opacity-60">Перевыполнили</div>
         </div>
         <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl mb-1">⚡</div>
-          <div className="text-2xl font-bold">{teamMembers.reduce((sum, m) => sum + m.streak, 0)}</div>
-          <div className="text-xs opacity-60">Общая серия дней</div>
+          <div className="text-2xl mb-1">💰</div>
+          <div className="text-2xl font-bold">{(departmentPlan.current / 1000000).toFixed(1)}M</div>
+          <div className="text-xs opacity-60">Общий факт</div>
         </div>
       </div>
-
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <h3 className="font-bold text-lg mb-4">Выполнение по сотрудникам</h3>
         <div className="h-64">
@@ -893,117 +779,68 @@ function AnalyticsView({ darkMode, showToast }: { darkMode: boolean; showToast: 
               <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
               <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
               <Bar dataKey="percent" fill="url(#barGradient)" radius={[8, 8, 0, 0]} />
-              <defs>
-                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ec4899" />
-                  <stop offset="100%" stopColor="#8b5cf6" />
-                </linearGradient>
-              </defs>
+              <defs><linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec4899" /><stop offset="100%" stopColor="#8b5cf6" /></linearGradient></defs>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
-
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4">Динамика по месяцам</h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#f3f4f6'} />
-              <XAxis dataKey="month" stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
-              <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-              <Line type="monotone" dataKey="percentage" stroke="#ec4899" strokeWidth={3} dot={{ fill: '#ec4899', r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-orange-500">🎯</span>
-          Почти у цели (нужно немного!)
-        </h3>
-        <div className="space-y-3">
-          {teamMembers
-            .filter(m => {
-              const pct = (m.fact / m.plan) * 100;
-              return pct >= 80 && pct < 100;
-            })
-            .map(emp => (
-              <div key={emp.id} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-orange-50'}`}>
-                <span className="text-xl">{emp.avatar}</span>
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{emp.name}</div>
-                  <div className="text-xs opacity-60">Осталось {((emp.plan - emp.fact) / 1000).toFixed(0)}K ₽</div>
-                </div>
-                <div className="font-bold text-orange-500">{Math.round((emp.fact / emp.plan) * 100)}%</div>
-              </div>
-            ))}
-          {teamMembers.filter(m => { const pct = (m.fact / m.plan) * 100; return pct >= 80 && pct < 100; }).length === 0 && (
-            <p className="text-sm opacity-60 text-center py-4">Нет сотрудников в этой категории 🎉</p>
-          )}
-        </div>
-      </div>
-
       <div className="flex flex-wrap gap-3">
-        <button onClick={() => showToast('📊 Отчёт Excel скачан!')} className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2">
-          📊 Экспорт в Excel
-        </button>
-        <button onClick={() => showToast('📄 PDF отчёт сформирован!')} className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2">
-          📄 Экспорт в PDF
-        </button>
-        <button onClick={() => showToast('📥 Откройте файл для импорта')} className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2">
-          📥 Импорт из CSV
-        </button>
+        <button onClick={() => showToast('📊 Отчёт Excel скачан!')} className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">📊 Экспорт Excel</button>
+        <button onClick={() => showToast('📄 PDF сформирован!')} className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">📄 Экспорт PDF</button>
       </div>
     </div>
   );
 }
 
-// ==================== PROFILE VIEW ====================
+// ============ PROFILE VIEW ============
 function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { currentUser } = useAppState();
-  const personalPercent = Math.round((currentUser.fact / currentUser.plan) * 100);
+  const { currentUser, updateCurrentUser } = useAppState();
+  if (!currentUser) return null;
+
+  const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
   const xpPercent = (currentUser.xp / currentUser.xpToNext) * 100;
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(currentUser.name);
+
+  const handleSave = () => {
+    updateCurrentUser({ name: editName });
+    setEditing(false);
+    showToast('✅ Профиль обновлён!');
+  };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={`rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : 'bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400'} text-white relative overflow-hidden`}
-      >
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className={`rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : 'bg-gradient-to-r from-pink-400 via-purple-400 to-indigo-400'} text-white relative overflow-hidden`}>
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="relative z-10 flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-5xl border-4 border-white/30">
-            {currentUser.avatar}
-          </div>
-          <div className="text-center sm:text-left">
-            <h2 className="text-2xl font-bold">{currentUser.name}</h2>
-            <p className="opacity-80">{currentUser.department}</p>
+          <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-5xl border-4 border-white/30">{currentUser.avatar}</div>
+          <div className="text-center sm:text-left flex-1">
+            {editing ? (
+              <div className="flex items-center gap-2">
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                  className="px-3 py-1 rounded-lg bg-white/20 text-white placeholder-white/50 border border-white/30 focus:outline-none" />
+                <button onClick={handleSave} className="px-3 py-1 bg-white/20 rounded-lg text-sm">✓</button>
+                <button onClick={() => setEditing(false)} className="px-3 py-1 bg-white/20 rounded-lg text-sm">✕</button>
+              </div>
+            ) : (
+              <h2 className="text-2xl font-bold">{currentUser.name} <button onClick={() => setEditing(true)} className="text-sm opacity-60 hover:opacity-100">✏️</button></h2>
+            )}
+            <p className="opacity-80">{currentUser.email}</p>
+            <p className="opacity-60 text-sm">{currentUser.department}</p>
             <div className="flex items-center gap-4 mt-3">
-              <div className="bg-white/20 rounded-xl px-3 py-1.5">
-                <span className="text-sm font-bold">⭐ Уровень {currentUser.level}</span>
-              </div>
-              <div className="bg-white/20 rounded-xl px-3 py-1.5">
-                <span className="text-sm font-bold">🔥 {currentUser.streak} дней</span>
-              </div>
+              <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">⭐ Уровень {currentUser.level}</span></div>
+              <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">🔥 {currentUser.streak} дней</span></div>
             </div>
           </div>
         </div>
         <div className="mt-6 relative z-10">
           <div className="flex justify-between text-sm mb-1">
             <span>Опыт: {currentUser.xp} XP</span>
-            <span>{currentUser.xpToNext - currentUser.xp} XP до уровня {currentUser.level + 1}</span>
+            <span>{currentUser.xpToNext - currentUser.xp} XP до ур. {currentUser.level + 1}</span>
           </div>
           <div className="h-3 bg-white/20 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${xpPercent}%` }}
-              transition={{ duration: 1, delay: 0.5 }}
-              className="h-full bg-gradient-to-r from-yellow-300 to-amber-400 rounded-full"
-            />
+            <motion.div initial={{ width: 0 }} animate={{ width: `${xpPercent}%` }} transition={{ duration: 1, delay: 0.5 }} className="h-full bg-gradient-to-r from-yellow-300 to-amber-400 rounded-full" />
           </div>
         </div>
       </motion.div>
@@ -1011,548 +848,236 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl font-bold text-pink-500">{personalPercent}%</div>
-          <div className="text-xs opacity-60 mt-1">План месяца</div>
+          <div className="text-xs opacity-60 mt-1">План</div>
         </div>
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
           <div className="text-2xl font-bold text-purple-500">{currentUser.achievements.length}</div>
           <div className="text-xs opacity-60 mt-1">Достижений</div>
         </div>
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-amber-500">1,250</div>
-          <div className="text-xs opacity-60 mt-1">Sales Coins</div>
+          <div className="text-2xl font-bold text-amber-500">{currentUser.salesCoins}</div>
+          <div className="text-xs opacity-60 mt-1">Монет</div>
         </div>
         <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-blue-500">#3</div>
-          <div className="text-xs opacity-60 mt-1">В рейтинге</div>
+          <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
+          <div className="text-xs opacity-60 mt-1">План ₽</div>
         </div>
       </div>
 
+      {/* My Achievements */}
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-blue-500">📅</span>
-          Календарь активности
-        </h3>
-        <div className="grid grid-cols-7 gap-1.5">
-          {Array.from({ length: 35 }).map((_, i) => {
-            const intensity = Math.random();
-            const active = i < 25;
-            return (
-              <div
-                key={i}
-                className={`aspect-square rounded-md ${
-                  !active ? (darkMode ? 'bg-gray-700' : 'bg-gray-100') :
-                  intensity > 0.7 ? 'bg-gradient-to-br from-pink-400 to-purple-400' :
-                  intensity > 0.4 ? 'bg-pink-200' :
-                  'bg-pink-100'
-                }`}
-              />
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-2 mt-3 text-xs opacity-60">
-          <span>Меньше</span>
-          <div className="w-3 h-3 rounded bg-pink-100" />
-          <div className="w-3 h-3 rounded bg-pink-200" />
-          <div className="w-3 h-3 rounded bg-gradient-to-br from-pink-400 to-purple-400" />
-          <span>Больше</span>
-        </div>
-      </div>
-
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-pink-500">🎁</span>
-          Мои призы
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[
-            { emoji: '☕', name: 'Кофе на месяц', status: 'Получен', date: 'Март 2024' },
-            { emoji: '🎬', name: 'Билеты в кино', status: 'Ожидает выдачи', date: 'Май 2024' },
-          ].map((prize, i) => (
-            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-pink-50'}`}>
-              <span className="text-2xl">{prize.emoji}</span>
-              <div>
-                <div className="font-medium text-sm">{prize.name}</div>
-                <div className="text-xs opacity-60">{prize.status} • {prize.date}</div>
+        <h3 className="font-bold text-lg mb-4">🏅 Мои достижения</h3>
+        {currentUser.achievements.length === 0 ? (
+          <p className="text-sm opacity-60 text-center py-4">Пока нет достижений</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            {currentUser.achievements.map(ach => (
+              <div key={ach.id} className={`aspect-square rounded-xl ${rarityColors[ach.rarity].bg} border ${rarityColors[ach.rarity].border} flex flex-col items-center justify-center p-2`}>
+                <span className="text-2xl">{ach.emoji}</span>
+                <span className="text-[9px] font-medium text-center mt-1">{ach.name}</span>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ==================== CHALLENGES VIEW ====================
-function ChallengesView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { challenges, updateChallenge } = useAppState();
+// ============ CHALLENGES VIEW ============
+function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; showToast: (m: string) => void }) {
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   const filtered = challenges.filter(c => c.type === activeTab);
 
-  const handleProgress = (id: string, current: number, total: number) => {
-    if (current < total) {
-      updateChallenge(id, { progress: current + 1 });
-      if (current + 1 >= total) {
-        showToast('🎉 Челлендж выполнен! +XP начислены');
-      }
-    }
-  };
-
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        <span className="text-yellow-500">⚡</span>
-        Челленджи и задания
-      </h2>
-
+      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-yellow-500">⚡</span> Челленджи</h2>
       <div className="flex gap-2">
-        {[
+        {([
           { key: 'daily' as const, label: 'Ежедневные', emoji: '🌅' },
           { key: 'weekly' as const, label: 'Еженедельные', emoji: '📅' },
           { key: 'seasonal' as const, label: 'Сезонные', emoji: '🌞' },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-              activeTab === tab.key
-                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg'
-                : darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'
-            }`}
-          >
+        ]).map(tab => (
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-lg' : darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
             {tab.emoji} {tab.label}
           </button>
         ))}
       </div>
-
-      <div className="space-y-4">
-        {filtered.map((challenge, i) => (
-          <motion.div
-            key={challenge.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 flex items-center justify-center text-3xl shrink-0">
-                {challenge.emoji}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold">{challenge.title}</h3>
-                  <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} XP</span>
-                </div>
-                <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
-                <div className="mt-3">
-                  <ProgressBar percentage={(challenge.progress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
-                  <div className="flex justify-between mt-1 text-xs opacity-60">
-                    <span>{challenge.progress}/{challenge.total}</span>
-                    <span>⏰ {challenge.deadline}</span>
-                  </div>
-                </div>
-                {challenge.progress < challenge.total && (
-                  <button
-                    onClick={() => handleProgress(challenge.id, challenge.progress, challenge.total)}
-                    className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold hover:shadow-md transition-all"
-                  >
-                    +1 Прогресс
-                  </button>
-                )}
-                {challenge.progress >= challenge.total && (
-                  <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">
-                    ✅ Выполнено!
-                  </span>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className={`rounded-2xl p-5 text-center ${darkMode ? 'bg-gradient-to-r from-purple-900/50 to-pink-900/50' : 'bg-gradient-to-r from-purple-100 to-pink-100'}`}>
-        <div className="text-4xl mb-2">💪</div>
-        <p className="font-bold">Ты можешь больше, чем думаешь!</p>
-        <p className="text-sm opacity-60 mt-1">Выполняй челленджи и зарабатывай бонусные монеты</p>
-      </div>
-    </div>
-  );
-}
-
-// ==================== BATTLE PASS VIEW ====================
-function BattlePassView({ darkMode }: { darkMode: boolean }) {
-  const { battlePass } = useAppState();
-  const bp = battlePass;
-  const progress = (bp.level / bp.maxLevel) * 100;
-
-  return (
-    <div className="space-y-6 pb-20 lg:pb-6">
-      <div className={`rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-indigo-900 to-purple-900' : 'bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400'} text-white relative overflow-hidden`}>
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-20 w-32 h-32 bg-white/5 rounded-full translate-y-1/2" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">{bp.emoji}</span>
-            <span className="text-sm font-medium opacity-80 uppercase tracking-wider">Боевой пропуск</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold">{bp.name}</h2>
-          <div className="mt-4">
-            <div className="flex justify-between text-sm mb-2">
-              <span>Уровень {bp.level}/{bp.maxLevel}</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div className="h-4 bg-white/20 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 1.5 }}
-                className="h-full bg-gradient-to-r from-yellow-300 to-amber-400 rounded-full"
-              />
-            </div>
-          </div>
+      {filtered.length === 0 ? (
+        <div className={`rounded-2xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+          <div className="text-4xl mb-3">🎯</div>
+          <p className="font-bold">Нет активных челленджей</p>
+          <p className="text-sm opacity-60 mt-1">Администратор скоро добавит новые задания!</p>
         </div>
-      </div>
-
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4">Награды сезона</h3>
-        <div className="space-y-3">
-          {bp.rewards.map((reward, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                reward.current ? 'bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/30 dark:to-purple-900/30 border-2 border-pink-300 dark:border-pink-700 shadow-md' :
-                reward.claimed ? (darkMode ? 'bg-gray-700/50' : 'bg-green-50') :
-                (darkMode ? 'bg-gray-700/30 opacity-50' : 'bg-gray-50 opacity-60')
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
-                reward.claimed ? 'bg-green-400 text-white' :
-                reward.current ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' :
-                (darkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-200 text-gray-400')
-              }`}>
-                {reward.claimed ? <Check size={18} /> : reward.current ? <Star size={18} /> : reward.level}
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((challenge, i) => (
+            <motion.div key={challenge.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
+              className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 flex items-center justify-center text-3xl shrink-0">{challenge.emoji}</div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold">{challenge.title}</h3>
+                    <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} XP</span>
+                  </div>
+                  <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
+                  <div className="mt-3">
+                    <ProgressBar percentage={(challenge.progress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
+                    <div className="flex justify-between mt-1 text-xs opacity-60">
+                      <span>{challenge.progress}/{challenge.total}</span>
+                      <span>⏰ {challenge.deadline}</span>
+                    </div>
+                  </div>
+                  {challenge.progress < challenge.total && (
+                    <button onClick={() => { updateChallenge(challenge.id, { progress: challenge.progress + 1 }); if (challenge.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
+                      className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
+                  )}
+                  {challenge.progress >= challenge.total && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено!</span>}
+                </div>
               </div>
-              <span className="text-2xl">{reward.emoji}</span>
-              <div className="flex-1">
-                <div className="font-medium text-sm">{reward.reward}</div>
-                <div className="text-xs opacity-60">Уровень {reward.level}</div>
-              </div>
-              {reward.current && (
-                <span className="text-xs font-bold text-pink-500 bg-pink-100 dark:bg-pink-900/50 px-2 py-1 rounded-full">Текущий</span>
-              )}
             </motion.div>
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-// ==================== NOTIFICATIONS VIEW ====================
-function NotificationsView({ darkMode, onMarkRead, onMarkAllRead }: { darkMode: boolean; onMarkRead: (id: string) => void; onMarkAllRead: () => void }) {
-  const { notifications } = useAppState();
-
+// ============ NOTIFICATIONS VIEW ============
+function NotificationsView({ darkMode, notifications, onMarkRead, onMarkAllRead }: { darkMode: boolean; notifications: any[]; onMarkRead: (id: string) => void; onMarkAllRead: () => void }) {
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <span className="text-pink-500">🔔</span>
-          Уведомления
-        </h2>
-        <button onClick={onMarkAllRead} className="text-sm text-pink-500 font-medium hover:underline">
-          Прочитать все
-        </button>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-pink-500">🔔</span> Уведомления</h2>
+        <button onClick={onMarkAllRead} className="text-sm text-pink-500 font-medium hover:underline">Прочитать все</button>
       </div>
-
-      <div className="space-y-3">
-        {notifications.map((notif, i) => (
-          <motion.div
-            key={notif.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.05 }}
-            onClick={() => onMarkRead(notif.id)}
-            className={`flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-all ${
-              !notif.read
-                ? (darkMode ? 'bg-pink-900/20 border border-pink-800' : 'bg-pink-50 border border-pink-200')
-                : (darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100')
-            }`}
-          >
-            <span className="text-2xl">{notif.emoji}</span>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-bold text-sm">{notif.title}</h4>
-                {!notif.read && <div className="w-2 h-2 rounded-full bg-pink-500" />}
+      {notifications.length === 0 ? (
+        <div className={`rounded-2xl p-8 text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+          <div className="text-4xl mb-3">🔔</div>
+          <p className="opacity-60">Нет уведомлений</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map((notif, i) => (
+            <motion.div key={notif.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+              onClick={() => onMarkRead(notif.id)}
+              className={`flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-all ${!notif.read ? (darkMode ? 'bg-pink-900/20 border border-pink-800' : 'bg-pink-50 border border-pink-200') : (darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100')}`}>
+              <span className="text-2xl">{notif.emoji}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm">{notif.title}</h4>
+                  {!notif.read && <div className="w-2 h-2 rounded-full bg-pink-500" />}
+                </div>
+                <p className="text-sm opacity-60 mt-0.5">{notif.message}</p>
+                <span className="text-xs opacity-40 mt-1">{notif.time}</span>
               </div>
-              <p className="text-sm opacity-60 mt-0.5">{notif.message}</p>
-              <span className="text-xs opacity-40 mt-1">{notif.time}</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ==================== TEAM VIEW (Manager) ====================
-function TeamView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { teamMembers, departmentPlan, updateDepartmentPlan, updateTeamMember, removeTeamMember, addTeamMember } = useAppState();
+// ============ TEAM VIEW (Admin only) ============
+function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin, showToast }: { darkMode: boolean; users: User[]; currentUser: User; updateUser: (id: string, data: Partial<User>) => void; removeUser: (id: string) => void; promoteToAdmin: (id: string) => void; demoteFromAdmin: (id: string) => void; showToast: (m: string) => void }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPlan, setEditPlan] = useState(0);
+  const [editFact, setEditFact] = useState(0);
+  const [editName, setEditName] = useState('');
 
-  const [editingPlan, setEditingPlan] = useState(false);
-  const [planTotal, setPlanTotal] = useState(departmentPlan.total);
-  const [planBrand, setPlanBrand] = useState(departmentPlan.brandOfMonth);
-  const [planPromo, setPlanPromo] = useState(departmentPlan.promoOfMonth);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberPlan, setNewMemberPlan] = useState(500000);
-  const [editingMember, setEditingMember] = useState<string | null>(null);
-  const [editMemberPlan, setEditMemberPlan] = useState(0);
-  const [editMemberFact, setEditMemberFact] = useState(0);
+  const employees = users.filter(u => u.role !== 'creator');
+  const isCreator = currentUser.role === 'creator';
 
-  const handleSavePlan = () => {
-    updateDepartmentPlan({ total: planTotal, brandOfMonth: planBrand, promoOfMonth: planPromo });
-    setEditingPlan(false);
-    showToast('✅ План отдела обновлён!');
-  };
-
-  const handleAddMember = () => {
-    if (!newMemberName.trim()) return;
-    const avatars = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼'];
-    const newMember: any = {
-      id: Date.now().toString(),
-      name: newMemberName,
-      avatar: avatars[Math.floor(Math.random() * avatars.length)],
-      role: 'employee' as const,
-      department: 'Отдел продаж №1',
-      level: 1,
-      xp: 0,
-      xpToNext: 1000,
-      streak: 0,
-      plan: newMemberPlan,
-      fact: 0,
-      achievements: [],
-      monthlyHistory: [],
-    };
-    addTeamMember(newMember);
-    setNewMemberName('');
-    setShowAddMember(false);
-    showToast(`✅ ${newMemberName} добавлен в команду!`);
-  };
-
-  const handleRemoveMember = (id: string, name: string) => {
-    removeTeamMember(id);
-    showToast(`🗑️ ${name} удалён из команды`);
-  };
-
-  const handleSaveMemberPlan = (id: string) => {
-    updateTeamMember(id, { plan: editMemberPlan, fact: editMemberFact });
-    setEditingMember(null);
-    showToast('✅ Данные сотрудника обновлены!');
+  const handleSave = (id: string) => {
+    updateUser(id, { plan: editPlan, fact: editFact, name: editName });
+    setEditingId(null);
+    showToast('✅ Данные обновлены!');
   };
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <span className="text-purple-500">👥</span>
-          Управление командой
-        </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowAddMember(true)}
-            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all flex items-center gap-1"
-          >
-            <Plus size={16} /> Пригласить
-          </button>
-          <button onClick={() => showToast('📥 Откройте файл Excel для импорта')} className={`px-4 py-2 rounded-xl text-sm font-bold ${darkMode ? 'bg-gray-700' : 'bg-white border border-gray-200'}`}>
-            📥 Импорт Excel
-          </button>
-        </div>
-      </div>
+      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-purple-500">👥</span> Управление командой</h2>
 
-      {/* Add Member Modal */}
-      <AnimatePresence>
-        {showAddMember && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          >
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddMember(false)} />
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className={`relative w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-2xl`}
-            >
-              <h3 className="text-xl font-bold mb-4">Добавить сотрудника</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium opacity-70">Имя сотрудника</label>
-                  <input
-                    type="text"
-                    value={newMemberName}
-                    onChange={e => setNewMemberName(e.target.value)}
-                    placeholder="Введите имя..."
-                    className={`w-full mt-1 px-4 py-3 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium opacity-70">Личный план (₽)</label>
-                  <input
-                    type="number"
-                    value={newMemberPlan}
-                    onChange={e => setNewMemberPlan(Number(e.target.value))}
-                    className={`w-full mt-1 px-4 py-3 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowAddMember(false)}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    onClick={handleAddMember}
-                    className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
-                  >
-                    Добавить
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Department Plan Settings */}
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-lg">📋 План отдела на июнь</h3>
-          {!editingPlan ? (
-            <button
-              onClick={() => setEditingPlan(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"
-            >
-              <Edit3 size={14} /> Редактировать
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => setEditingPlan(false)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                Отмена
-              </button>
-              <button onClick={handleSavePlan} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
-                <Save size={14} /> Сохранить
-              </button>
+      {/* Admin emails info */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <h3 className="font-bold mb-3 flex items-center gap-2"><Shield size={18} className="text-blue-500" /> Администраторы</h3>
+        <div className="space-y-2 text-sm">
+          <div className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+            <span>👑</span><span className="font-medium">{CREATOR_EMAIL}</span><span className="text-xs opacity-50">(Создатель)</span>
+          </div>
+          {ADMIN_EMAILS.map(email => (
+            <div key={email} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+              <span>🛡️</span><span>{email}</span><span className="text-xs opacity-50">(Админ)</span>
             </div>
-          )}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs opacity-60 font-medium">Общий план (₽)</label>
-            <input
-              type="number"
-              value={editingPlan ? planTotal : departmentPlan.total}
-              onChange={e => setPlanTotal(Number(e.target.value))}
-              disabled={!editingPlan}
-              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 ${!editingPlan ? 'opacity-70' : ''}`}
-            />
-          </div>
-          <div>
-            <label className="text-xs opacity-60 font-medium">Бренд месяца</label>
-            <input
-              type="text"
-              value={editingPlan ? planBrand : departmentPlan.brandOfMonth}
-              onChange={e => setPlanBrand(e.target.value)}
-              disabled={!editingPlan}
-              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 ${!editingPlan ? 'opacity-70' : ''}`}
-            />
-          </div>
-          <div>
-            <label className="text-xs opacity-60 font-medium">Акция месяца</label>
-            <input
-              type="text"
-              value={editingPlan ? planPromo : departmentPlan.promoOfMonth}
-              onChange={e => setPlanPromo(e.target.value)}
-              disabled={!editingPlan}
-              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 ${!editingPlan ? 'opacity-70' : ''}`}
-            />
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Team Members */}
+      {/* Users list */}
       <div className={`rounded-2xl border overflow-hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
-          <h3 className="font-bold">Сотрудники ({teamMembers.length})</h3>
+          <h3 className="font-bold">Участники ({employees.length})</h3>
         </div>
-        {teamMembers.map((emp, i) => (
-          <div key={emp.id} className={`p-4 ${i !== teamMembers.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''}`}>
-            {editingMember === emp.id ? (
+        {employees.map((emp, i) => (
+          <div key={emp.id} className={`p-4 ${i !== employees.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''}`}>
+            {editingId === emp.id ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{emp.avatar}</span>
-                  <span className="font-bold">{emp.name}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs opacity-60">Имя</label>
+                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                      className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+                  </div>
                   <div>
                     <label className="text-xs opacity-60">План (₽)</label>
-                    <input
-                      type="number"
-                      value={editMemberPlan}
-                      onChange={e => setEditMemberPlan(Number(e.target.value))}
-                      className={`w-full mt-1 px-3 py-2 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm`}
-                    />
+                    <input type="number" value={editPlan} onChange={e => setEditPlan(Number(e.target.value))}
+                      className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
                   </div>
                   <div>
                     <label className="text-xs opacity-60">Факт (₽)</label>
-                    <input
-                      type="number"
-                      value={editMemberFact}
-                      onChange={e => setEditMemberFact(Number(e.target.value))}
-                      className={`w-full mt-1 px-3 py-2 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm`}
-                    />
+                    <input type="number" value={editFact} onChange={e => setEditFact(Number(e.target.value))}
+                      className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setEditingMember(null)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                    Отмена
-                  </button>
-                  <button onClick={() => handleSaveMemberPlan(emp.id)} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
-                    <Save size={12} /> Сохранить
-                  </button>
+                  <button onClick={() => setEditingId(null)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>Отмена</button>
+                  <button onClick={() => handleSave(emp.id)} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={12} /> Сохранить</button>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{emp.avatar}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">{emp.name}</div>
-                  <div className="text-xs opacity-60">Ур. {emp.level} • План: {(emp.plan / 1000).toFixed(0)}K ₽ • Факт: {(emp.fact / 1000).toFixed(0)}K ₽</div>
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    {emp.name}
+                    {emp.role === 'admin' && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full">🛡️ Админ</span>}
+                  </div>
+                  <div className="text-xs opacity-60">{emp.email} • План: {(emp.plan / 1000).toFixed(0)}K ₽ • Факт: {(emp.fact / 1000).toFixed(0)}K ₽</div>
                 </div>
                 <div className="text-right hidden sm:block">
-                  <div className="font-bold text-sm">{Math.round((emp.fact / emp.plan) * 100)}%</div>
-                  <div className="text-xs opacity-60">{emp.achievements.length} значков</div>
+                  <div className="font-bold text-sm">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
                 </div>
                 <div className="flex gap-1">
-                  <button
-                    onClick={() => { setEditingMember(emp.id); setEditMemberPlan(emp.plan); setEditMemberFact(emp.fact); }}
-                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-blue-50'} text-blue-500`}
-                    title="Редактировать план"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleRemoveMember(emp.id, emp.name)}
-                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-red-50'} text-red-500`}
-                    title="Удалить"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <button onClick={() => { setEditingId(emp.id); setEditPlan(emp.plan); setEditFact(emp.fact); setEditName(emp.name); }}
+                    className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-blue-50'} text-blue-500`} title="Редактировать"><Edit3 size={16} /></button>
+                  {isCreator && emp.role !== 'creator' && (
+                    <>
+                      {emp.role === 'admin' ? (
+                        <button onClick={() => { demoteFromAdmin(emp.id); showToast('Роль изменена на участника'); }}
+                          className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-orange-50'} text-orange-500`} title="Снять админа">🛡️</button>
+                      ) : (
+                        <button onClick={() => { promoteToAdmin(emp.id); showToast(`${emp.name} назначен администратором!`); }}
+                          className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-purple-50'} text-purple-500`} title="Назначить админом"><Shield size={16} /></button>
+                      )}
+                    </>
+                  )}
+                  {emp.id !== currentUser.id && (
+                    <button onClick={() => { removeUser(emp.id); showToast(`${emp.name} удалён`); }}
+                      className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-red-50'} text-red-500`} title="Удалить"><Trash2 size={16} /></button>
+                  )}
                 </div>
               </div>
             )}
@@ -1563,184 +1088,206 @@ function TeamView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: s
   );
 }
 
-// ==================== SETTINGS VIEW ====================
+// ============ SETTINGS VIEW (Admin only) ============
 function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { companySettings, updateCompanySettings } = useAppState();
+  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize } = useAppState();
 
   const [localName, setLocalName] = useState(companySettings.name);
   const [localColor, setLocalColor] = useState(companySettings.mainColor);
-  const [localApiKey, setLocalApiKey] = useState(companySettings.apiKey);
+  const [planTotal, setPlanTotal] = useState(departmentPlan.total);
+  const [brandMonth, setBrandMonth] = useState(departmentPlan.brandOfMonth);
+  const [promoMonth, setPromoMonth] = useState(departmentPlan.promoOfMonth);
 
-  const handleSaveCompany = () => {
-    updateCompanySettings({ name: localName, mainColor: localColor, apiKey: localApiKey });
-    showToast('✅ Настройки компании сохранены!');
+  // New prize form
+  const [showNewPrize, setShowNewPrize] = useState(false);
+  const [newPrizeEmoji, setNewPrizeEmoji] = useState('🎁');
+  const [newPrizeName, setNewPrizeName] = useState('');
+  const [newPrizeDesc, setNewPrizeDesc] = useState('');
+  const [newPrizeCost, setNewPrizeCost] = useState(100);
+  const [newPrizeCat, setNewPrizeCat] = useState('Разное');
+
+  const handleSaveSettings = () => {
+    updateCompanySettings({ name: localName, mainColor: localColor });
+    showToast('✅ Настройки сохранены!');
+  };
+
+  const handleSavePlan = () => {
+    updateDepartmentPlan({ total: planTotal, brandOfMonth: brandMonth, promoOfMonth: promoMonth });
+    showToast('✅ План отдела обновлён!');
+  };
+
+  const handleAddPrize = () => {
+    if (!newPrizeName.trim()) return;
+    addPrize({ id: Date.now().toString(), name: newPrizeName, emoji: newPrizeEmoji, description: newPrizeDesc, cost: newPrizeCost, available: true, category: newPrizeCat });
+    setShowNewPrize(false);
+    setNewPrizeName('');
+    setNewPrizeDesc('');
+    showToast('🎁 Приз добавлен!');
   };
 
   const colors = [
-    { value: 'bg-pink-500', label: 'Розовый' },
-    { value: 'bg-purple-500', label: 'Фиолетовый' },
-    { value: 'bg-blue-500', label: 'Синий' },
-    { value: 'bg-green-500', label: 'Зелёный' },
-    { value: 'bg-amber-500', label: 'Золотой' },
-    { value: 'bg-red-500', label: 'Красный' },
+    { value: 'pink', label: 'Розовый', preview: 'bg-pink-500' },
+    { value: 'purple', label: 'Фиолетовый', preview: 'bg-purple-500' },
+    { value: 'blue', label: 'Синий', preview: 'bg-blue-500' },
+    { value: 'green', label: 'Зелёный', preview: 'bg-green-500' },
+    { value: 'amber', label: 'Золотой', preview: 'bg-amber-500' },
+    { value: 'red', label: 'Красный', preview: 'bg-red-500' },
   ];
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        <span className="text-gray-500">⚙️</span>
-        Настройки
-      </h2>
+      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-gray-500">⚙️</span> Настройки</h2>
 
-      <div className="space-y-4">
-        {/* Company Branding */}
-        <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold">🏢 Брендирование компании</h3>
-            <button
-              onClick={handleSaveCompany}
-              className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"
-            >
-              <Save size={14} /> Сохранить
-            </button>
+      {/* Company Branding */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold">🏢 Брендирование</h3>
+          <button onClick={handleSaveSettings} className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium opacity-70">Название компании</label>
+            <input type="text" value={localName} onChange={e => setLocalName(e.target.value)}
+              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
           </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium opacity-70">Название компании</label>
-              <input
-                type="text"
-                value={localName}
-                onChange={e => setLocalName(e.target.value)}
-                className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
-              />
+          <div>
+            <label className="text-sm font-medium opacity-70">Цвет интерфейса</label>
+            <div className="flex gap-3 mt-2 flex-wrap">
+              {colors.map(c => (
+                <button key={c.value} onClick={() => setLocalColor(c.value)} title={c.label}
+                  className={`w-12 h-12 rounded-xl ${c.preview} ring-3 transition-all ${localColor === c.value ? 'ring-offset-2 ring-pink-400 scale-110 shadow-lg' : 'ring-transparent hover:scale-105'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`} />
+              ))}
             </div>
-            <div>
-              <label className="text-sm font-medium opacity-70">Основной цвет</label>
-              <div className="flex gap-2 mt-2 flex-wrap">
-                {colors.map(color => (
-                  <button
-                    key={color.value}
-                    onClick={() => setLocalColor(color.value)}
-                    className={`w-10 h-10 rounded-full ${color.value} ring-2 ring-offset-2 transition-all ${localColor === color.value ? 'ring-pink-400 scale-110' : 'ring-transparent hover:ring-pink-200'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
-                    title={color.label}
-                  />
-                ))}
-              </div>
-            </div>
+            <p className="text-xs opacity-50 mt-2">Выбрано: {colors.find(c => c.value === localColor)?.label || 'Розовый'}</p>
           </div>
         </div>
+      </div>
 
-        {/* Toggles */}
-        <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-          <h3 className="font-bold mb-4">🔔 Уведомления и эффекты</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium">Звуки уведомлений</span>
-                <p className="text-xs opacity-50">Звуковые эффекты при событиях</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={companySettings.soundsEnabled}
-                  onChange={e => { updateCompanySettings({ soundsEnabled: e.target.checked }); showToast(e.target.checked ? '🔊 Звуки включены' : '🔇 Звуки выключены'); }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-500"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium">Push-уведомления</span>
-                <p className="text-xs opacity-50">Уведомления в браузере</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={companySettings.pushEnabled}
-                  onChange={e => { updateCompanySettings({ pushEnabled: e.target.checked }); showToast(e.target.checked ? '📬 Push включены' : '📭 Push выключены'); }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-500"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium">Анимация конфетти</span>
-                <p className="text-xs opacity-50">Конфетти при достижениях</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={companySettings.confettiEnabled}
-                  onChange={e => { updateCompanySettings({ confettiEnabled: e.target.checked }); showToast(e.target.checked ? '🎊 Конфетти включено' : 'Конфетти выключено'); }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-500"></div>
-              </label>
-            </div>
+      {/* Department Plan */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold">📋 План отдела</h3>
+          <button onClick={handleSavePlan} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs opacity-60 font-medium">Общий план (₽)</label>
+            <input type="number" value={planTotal} onChange={e => setPlanTotal(Number(e.target.value))}
+              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+          </div>
+          <div>
+            <label className="text-xs opacity-60 font-medium">Бренд месяца</label>
+            <input type="text" value={brandMonth} onChange={e => setBrandMonth(e.target.value)}
+              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+          </div>
+          <div>
+            <label className="text-xs opacity-60 font-medium">Акция месяца</label>
+            <input type="text" value={promoMonth} onChange={e => setPromoMonth(e.target.value)}
+              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
           </div>
         </div>
+      </div>
 
-        {/* Integrations */}
-        <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-          <h3 className="font-bold mb-4">🔗 Интеграции</h3>
-          <div className="space-y-3">
-            <div className={`flex items-center justify-between p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center gap-2">
-                <span className="text-xl">📊</span>
-                <div>
-                  <span className="text-sm font-medium">CRM интеграция</span>
-                  <p className="text-xs opacity-50">Автоматический импорт данных</p>
-                </div>
+      {/* Toggles */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <h3 className="font-bold mb-4">🔔 Эффекты и уведомления</h3>
+        <div className="space-y-4">
+          {[
+            { key: 'soundsEnabled' as const, label: 'Звуки', desc: 'Звуковые эффекты' },
+            { key: 'pushEnabled' as const, label: 'Push-уведомления', desc: 'Уведомления в браузере' },
+            { key: 'confettiEnabled' as const, label: 'Конфетти', desc: 'Анимация при достижениях' },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium">{item.label}</span>
+                <p className="text-xs opacity-50">{item.desc}</p>
               </div>
-              <button
-                onClick={() => {
-                  updateCompanySettings({ crmConnected: !companySettings.crmConnected });
-                  showToast(companySettings.crmConnected ? '❌ CRM отключена' : '✅ CRM подключена!');
-                }}
-                className={`text-xs font-medium px-3 py-1.5 rounded-full ${companySettings.crmConnected ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}
-              >
-                {companySettings.crmConnected ? '✓ Подключено' : 'Отключено'}
-              </button>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={companySettings[item.key]}
+                  onChange={e => { updateCompanySettings({ [item.key]: e.target.checked }); showToast(e.target.checked ? `✅ ${item.label} включены` : `${item.label} выключены`); }}
+                  className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-500"></div>
+              </label>
             </div>
-            <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🔑</span>
-                  <span className="text-sm font-medium">API ключ</span>
-                </div>
-                <button
-                  onClick={() => { updateCompanySettings({ apiKey: localApiKey }); showToast('✅ API ключ сохранён!'); }}
-                  className="text-xs text-pink-500 font-medium"
-                >
-                  Сохранить
-                </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Prizes Management */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold">🎁 Управление призами ({prizes.length})</h3>
+          <button onClick={() => setShowNewPrize(!showNewPrize)} className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+            <Plus size={14} /> Добавить
+          </button>
+        </div>
+
+        {showNewPrize && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`mb-4 p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-pink-50'} space-y-3`}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs opacity-60">Эмодзи</label>
+                <input type="text" value={newPrizeEmoji} onChange={e => setNewPrizeEmoji(e.target.value)}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
               </div>
-              <input
-                type="text"
-                value={localApiKey}
-                onChange={e => setLocalApiKey(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`}
-              />
+              <div>
+                <label className="text-xs opacity-60">Название</label>
+                <input type="text" value={newPrizeName} onChange={e => setNewPrizeName(e.target.value)} placeholder="Название приза"
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Стоимость (монет)</label>
+                <input type="number" value={newPrizeCost} onChange={e => setNewPrizeCost(Number(e.target.value))}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Категория</label>
+                <input type="text" value={newPrizeCat} onChange={e => setNewPrizeCat(e.target.value)}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+              </div>
             </div>
-          </div>
+            <div>
+              <label className="text-xs opacity-60">Описание</label>
+              <input type="text" value={newPrizeDesc} onChange={e => setNewPrizeDesc(e.target.value)} placeholder="Описание приза"
+                className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowNewPrize(false)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>Отмена</button>
+              <button onClick={handleAddPrize} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold">Добавить приз</button>
+            </div>
+          </motion.div>
+        )}
+
+        <div className="space-y-2">
+          {prizes.map(prize => (
+            <div key={prize.id} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+              <span className="text-xl">{prize.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">{prize.name}</div>
+                <div className="text-xs opacity-60">{prize.description} • 🪙 {prize.cost} • {prize.category}</div>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => { updatePrize(prize.id, { cost: prize.cost + 50 }); showToast('Стоимость изменена'); }}
+                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-blue-500 text-xs`}>+50🪙</button>
+                <button onClick={() => { updatePrize(prize.id, { cost: Math.max(0, prize.cost - 50) }); showToast('Стоимость изменена'); }}
+                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-orange-500 text-xs`}>-50🪙</button>
+                <button onClick={() => { removePrize(prize.id); showToast('Приз удалён'); }}
+                  className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-red-500`}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ==================== SHARED COMPONENTS ====================
+// ============ SHARED COMPONENTS ============
 function ProgressBar({ percentage, color, small }: { percentage: number; color: string; small?: boolean }) {
   return (
     <div className={`w-full ${small ? 'h-2' : 'h-3'} bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden`}>
-      <motion.div
-        initial={{ width: 0 }}
-        animate={{ width: `${Math.min(percentage, 100)}%` }}
-        transition={{ duration: 1, ease: 'easeOut' }}
-        className={`h-full bg-gradient-to-r ${color} rounded-full relative`}
-      >
+      <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(percentage, 100)}%` }} transition={{ duration: 1, ease: 'easeOut' }}
+        className={`h-full bg-gradient-to-r ${color} rounded-full relative`}>
         <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 animate-pulse" />
       </motion.div>
     </div>
@@ -1749,14 +1296,21 @@ function ProgressBar({ percentage, color, small }: { percentage: number; color: 
 
 function StatCard({ emoji, label, value, color, darkColor, darkMode }: { emoji: string; label: string; value: string; color: string; darkColor: string; darkMode: boolean }) {
   return (
-    <motion.div
-      whileHover={{ scale: 1.05 }}
-      className={`p-4 rounded-xl bg-gradient-to-br ${darkMode ? darkColor : color} border ${darkMode ? 'border-gray-700' : 'border-white/50'} shadow-sm`}
-    >
+    <motion.div whileHover={{ scale: 1.05 }}
+      className={`p-4 rounded-xl bg-gradient-to-br ${darkMode ? darkColor : color} border ${darkMode ? 'border-gray-700' : 'border-white/50'} shadow-sm`}>
       <div className="text-2xl mb-1">{emoji}</div>
       <div className="text-xl font-bold">{value}</div>
       <div className="text-xs opacity-60">{label}</div>
     </motion.div>
+  );
+}
+
+// ============ ROOT ============
+function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
   );
 }
 
