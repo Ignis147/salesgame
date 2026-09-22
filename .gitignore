@@ -1,1 +1,33 @@
-Nothing to output - the modified file 'src/App.tsx' is a source code file and no build artifacts, dependencies, or temporary files are present in the changes.
+```
+# Build artifacts
+dist/
+build/
+*.js
+*.css
+
+# Dependencies
+node_modules/
+
+# Cache and temporary files
+*.pyc
+__pycache__/
+.pycache/
+*.tmp
+*.swp
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+```
