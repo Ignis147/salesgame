@@ -335,7 +335,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === currentUser.id || c.userId === 'global')} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === 'global' || c.userId === currentUser.id || (c.assignedTo && c.assignedTo.includes(currentUser.id || '')))} updateChallenge={updateChallenge} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
@@ -1340,7 +1340,7 @@ function SettingsView({
     const isGlobal = selectedUserIds.length === 0;
     const challenge: Challenge = {
       id: Date.now().toString(),
-      userId: isGlobal ? 'global' : (currentUser?.id || 'global'),
+      userId: 'global', // Всегда создаем как глобальный, но с assignedTo для персональных
       title: newChallengeTitle,
       description: newChallengeDesc,
       emoji: newChallengeEmoji,
