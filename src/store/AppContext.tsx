@@ -29,6 +29,20 @@ export interface UserAchievement {
   description: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   date: string;
+  cost: number; // стоимость в монетах
+  image?: string; // URL картинки достижения
+}
+
+export interface AchievementTemplate {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  cost: number; // стоимость в монетах
+  image?: string; // URL картинки достижения
+  isActive: boolean; // активно ли достижение в системе
+  createdAt: string;
 }
 
 export interface MonthlyRecord {
@@ -239,6 +253,13 @@ interface AppState {
   archiveCurrentMonthPlan: () => void;
 
   spendCoins: (amount: number) => void;
+
+  // Achievements management (admin only)
+  achievementTemplates: AchievementTemplate[];
+  addAchievementTemplate: (template: AchievementTemplate) => void;
+  updateAchievementTemplate: (id: string, data: Partial<AchievementTemplate>) => void;
+  removeAchievementTemplate: (id: string) => void;
+  grantAchievementToUser: (userId: string, achievementId: string) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -291,6 +312,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('sq_notifications', []));
   const [departmentPlan, setDepartmentPlan] = useState<DepartmentPlan>(() => loadFromStorage('sq_dept_plan', getDefaultDepartmentPlan()));
   const [planArchives, setPlanArchives] = useState<MonthlyPlanArchive[]>(() => loadFromStorage('sq_plan_archives', []));
+  const [achievementTemplates, setAchievementTemplates] = useState<AchievementTemplate[]>(() => loadFromStorage('sq_achievements', []));
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const settings = loadFromStorage('sq_settings', getDefaultSettings());
     // Миграция: если старое название, обновить
@@ -308,6 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('sq_notifications', notifications); }, [notifications]);
   useEffect(() => { saveToStorage('sq_dept_plan', departmentPlan); }, [departmentPlan]);
   useEffect(() => { saveToStorage('sq_plan_archives', planArchives); }, [planArchives]);
+  useEffect(() => { saveToStorage('sq_achievements', achievementTemplates); }, [achievementTemplates]);
   useEffect(() => { saveToStorage('sq_settings', companySettings); }, [companySettings]);
 
   // Recalculate department plan when users change
@@ -540,6 +563,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, [planArchives, users]);
 
+  const grantAchievementToUser = useCallback((userId: string, achievementId: string) => {
+    const template = achievementTemplates.find(a => a.id === achievementId);
+    if (!template) return;
+
+    // Find user and add achievement
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        // Check if user already has this achievement
+        const alreadyHas = u.achievements.some(ach => ach.id === achievementId || ach.name === template.name);
+        if (alreadyHas) return u;
+
+        const newAchievement: UserAchievement = {
+          id: achievementId,
+          name: template.name,
+          emoji: template.emoji,
+          description: template.description,
+          rarity: template.rarity,
+          date: new Date().toISOString().split('T')[0],
+          cost: template.cost,
+          image: template.image,
+        };
+
+        // Add coins to user's account
+        const updatedUser = {
+          ...u,
+          achievements: [...u.achievements, newAchievement],
+          salesCoins: u.salesCoins + template.cost,
+        };
+
+        // Also update currentUser if it's the same user
+        if (currentUser?.id === userId) {
+          setCurrentUser(updatedUser);
+        }
+
+        return updatedUser;
+      }
+      return u;
+    }));
+
+    // Add notification to user
+    const notif: Notification = {
+      id: generateId(),
+      userId,
+      title: 'Новое достижение!',
+      message: `Вы получили достижение "${template.name}" (+${template.cost} 🪙)`,
+      emoji: template.emoji,
+      time: 'Только что',
+      read: false,
+    };
+    setNotifications(prev => [notif, ...prev]);
+  }, [achievementTemplates, currentUser]);
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -560,6 +635,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       departmentPlan,
       companySettings,
       planArchives,
+      achievementTemplates,
       updatePrizes: setPrizes,
       addPrize: (prize) => setPrizes(prev => [...prev, prize]),
       updatePrize: (id, data) => setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...data } : p)),
@@ -576,6 +652,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateCompanySettings,
       archiveCurrentMonthPlan,
       spendCoins,
+      addAchievementTemplate: (template) => setAchievementTemplates(prev => [...prev, template]),
+      updateAchievementTemplate: (id, data) => setAchievementTemplates(prev => prev.map(a => a.id === id ? { ...a, ...data } : a)),
+      removeAchievementTemplate: (id) => setAchievementTemplates(prev => prev.filter(a => a.id !== id)),
+      grantAchievementToUser,
     }}>
       {children}
     </AppContext.Provider>

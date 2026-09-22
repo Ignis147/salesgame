@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
   Target, TrendingUp, Crown, Sparkles, Star,
   Medal, Award, Zap,
-  Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield
+  Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield, Image as ImageIcon
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
@@ -143,12 +143,13 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
 function AppContent() {
   const {
     currentUser, users, isAuthenticated, isAdmin, logout,
-    prizes, challenges, notifications, departmentPlan, companySettings,
+    prizes, challenges, notifications, departmentPlan, companySettings, achievementTemplates,
     updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
     addPrize, updatePrize, removePrize,
     updateChallenge,
     markNotificationRead, markAllNotificationsRead,
     updateDepartmentPlan, updateCompanySettings, spendCoins,
+    addAchievementTemplate, updateAchievementTemplate, removeAchievementTemplate, grantAchievementToUser,
   } = useAppState();
 
   const [currentView, setCurrentView] = useState<View>('home');
@@ -157,6 +158,15 @@ function AppContent() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAchievementPopup, setShowAchievementPopup] = useState<UserAchievement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  
+  // Admin: Manage achievements tab
+  const [manageAchievementsTab, setManageAchievementsTab] = useState<'list' | 'create'>('list');
+  const [newAchievementName, setNewAchievementName] = useState('');
+  const [newAchievementDesc, setNewAchievementDesc] = useState('');
+  const [newAchievementEmoji, setNewAchievementEmoji] = useState('🏆');
+  const [newAchievementRarity, setNewAchievementRarity] = useState<'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'>('common');
+  const [newAchievementCost, setNewAchievementCost] = useState(50);
+  const [newAchievementImage, setNewAchievementImage] = useState('');
 
   const showToast = useCallback((msg: string) => setToast(msg), []);
 
@@ -332,7 +342,7 @@ function AppContent() {
             <AnimatePresence mode="wait">
               <motion.div key={currentView + currentUser.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
                 {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} />}
-                {currentView === 'achievements' && <AchievementsView darkMode={darkMode} />}
+                {currentView === 'achievements' && <AchievementsView darkMode={darkMode} isAdmin={admin} />}
                 {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name) => { spendCoins(amount); showToast(`🎉 Вы обменяли "${name}"!`); }} />}
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
@@ -340,7 +350,7 @@ function AppContent() {
                 {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === currentUser.id || c.userId === 'global')} updateChallenge={updateChallenge} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
-                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} />}
+                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} />}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -1238,8 +1248,26 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
 }
 
 // ============ SETTINGS VIEW (Admin only) ============
-function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, users, planArchives, archiveCurrentMonthPlan } = useAppState();
+function SettingsView({ 
+  darkMode, 
+  showToast, 
+  achievementTemplates, 
+  addAchievementTemplate, 
+  updateAchievementTemplate, 
+  removeAchievementTemplate, 
+  grantAchievementToUser,
+  users 
+}: { 
+  darkMode: boolean; 
+  showToast: (m: string) => void;
+  achievementTemplates: AchievementTemplate[];
+  addAchievementTemplate: (t: AchievementTemplate) => void;
+  updateAchievementTemplate: (id: string, data: Partial<AchievementTemplate>) => void;
+  removeAchievementTemplate: (id: string) => void;
+  grantAchievementToUser: (userId: string, achievementId: string) => void;
+  users: User[];
+}) {
+  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, planArchives, archiveCurrentMonthPlan } = useAppState();
 
   const [localName, setLocalName] = useState(companySettings.name);
   const [localColor, setLocalColor] = useState(companySettings.mainColor);
@@ -1265,6 +1293,17 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
   const [newChallengeType, setNewChallengeType] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   const [newChallengeDeadline, setNewChallengeDeadline] = useState('');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  // Achievements management
+  const [manageAchievementsTab, setManageAchievementsTab] = useState<'list' | 'create' | 'grant'>('list');
+  const [newAchievementName, setNewAchievementName] = useState('');
+  const [newAchievementDesc, setNewAchievementDesc] = useState('');
+  const [newAchievementEmoji, setNewAchievementEmoji] = useState('🏆');
+  const [newAchievementRarity, setNewAchievementRarity] = useState<'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'>('common');
+  const [newAchievementCost, setNewAchievementCost] = useState(50);
+  const [newAchievementImage, setNewAchievementImage] = useState('');
+  const [grantUserId, setGrantUserId] = useState('');
+  const [grantAchievementId, setGrantAchievementId] = useState('');
 
   const handleSaveSettings = () => {
     updateCompanySettings({ name: localName, mainColor: localColor });
@@ -1323,6 +1362,38 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
   const handleArchiveMonth = () => {
     archiveCurrentMonthPlan();
     showToast('📦 Месяц заархивирован!');
+  };
+
+  // Achievement handlers
+  const handleAddAchievement = () => {
+    if (!newAchievementName.trim()) return;
+    const template: AchievementTemplate = {
+      id: Date.now().toString(),
+      name: newAchievementName,
+      description: newAchievementDesc,
+      emoji: newAchievementEmoji,
+      rarity: newAchievementRarity,
+      cost: newAchievementCost,
+      image: newAchievementImage || undefined,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    addAchievementTemplate(template);
+    setNewAchievementName('');
+    setNewAchievementDesc('');
+    setNewAchievementEmoji('🏆');
+    setNewAchievementRarity('common');
+    setNewAchievementCost(50);
+    setNewAchievementImage('');
+    showToast('🏆 Достижение создано!');
+  };
+
+  const handleGrantAchievement = () => {
+    if (!grantUserId || !grantAchievementId) return;
+    grantAchievementToUser(grantUserId, grantAchievementId);
+    setGrantUserId('');
+    setGrantAchievementId('');
+    showToast('✅ Достижение выдано сотруднику!');
   };
 
   const colors = [
