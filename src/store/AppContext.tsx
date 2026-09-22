@@ -92,7 +92,7 @@ export interface CompanySettings {
 // ============ CONSTANTS ============
 const CREATOR_EMAIL = 'creator@salesquest.ru';
 const CREATOR_PASSWORD = 'creator123';
-const ADMIN_EMAILS = ['admin1@salesquest.ru', 'admin2@salesquest.ru'];
+const ADMIN_EMAILS = ['ignis.kwork@gmal.com', 'admin2@salesquest.ru'];
 const ADMIN_PASSWORD = 'admin123';
 
 const AVATARS = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️'];
