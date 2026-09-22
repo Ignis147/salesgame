@@ -90,10 +90,8 @@ export interface CompanySettings {
 }
 
 // ============ CONSTANTS ============
-const CREATOR_EMAIL = 'creator@salesquest.ru';
-const CREATOR_PASSWORD = 'creator123';
-const ADMIN_EMAILS = ['ignis.kwork@gmal.com', 'admin2@salesquest.ru'];
-const ADMIN_PASSWORD = 'admin123';
+const CREATOR_EMAIL = 'ignis.kwork@gmal.com';
+const CREATOR_PASSWORD = 'admin123';
 
 const AVATARS = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️'];
 
@@ -314,12 +312,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Введите имя' };
     }
 
-    // Check if this email is a pre-set admin
+    // Check if this email is the creator
     let role: 'creator' | 'admin' | 'employee' = 'employee';
     if (email.toLowerCase() === CREATOR_EMAIL) {
       role = 'creator';
-    } else if (ADMIN_EMAILS.includes(email.toLowerCase())) {
-      role = 'admin';
     }
 
     const newUser: User = {
@@ -469,4 +465,4 @@ export function useAppState() {
   return ctx;
 }
 
-export { CREATOR_EMAIL, CREATOR_PASSWORD, ADMIN_EMAILS, ADMIN_PASSWORD };
+export { CREATOR_EMAIL, CREATOR_PASSWORD };

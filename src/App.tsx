@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import { AppProvider, useAppState, CREATOR_EMAIL, CREATOR_PASSWORD, ADMIN_EMAILS, ADMIN_PASSWORD, type User, type UserAchievement } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, CREATOR_PASSWORD, type User, type UserAchievement } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
@@ -147,9 +147,8 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`mt-3 p-3 rounded-xl text-xs space-y-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <div className="font-bold mb-1">👑 Создатель:</div>
             <div>{CREATOR_EMAIL} / {CREATOR_PASSWORD}</div>
-            <div className="font-bold mt-2 mb-1">🛡️ Администраторы:</div>
-            {ADMIN_EMAILS.map(e => <div key={e}>{e} / {ADMIN_PASSWORD}</div>)}
-            <div className="font-bold mt-2 mb-1">👤 Или зарегистрируйте нового пользователя</div>
+            <div className="font-bold mt-2 mb-1">👤 Или зарегистрируйте нового участника</div>
+            <div className="opacity-60">Создатель может назначать админов из панели "Команда"</div>
           </motion.div>
         )}
       </motion.div>
@@ -1008,11 +1007,14 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
           <div className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
             <span>👑</span><span className="font-medium">{CREATOR_EMAIL}</span><span className="text-xs opacity-50">(Создатель)</span>
           </div>
-          {ADMIN_EMAILS.map(email => (
-            <div key={email} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
-              <span>🛡️</span><span>{email}</span><span className="text-xs opacity-50">(Админ)</span>
+          {users.filter((u: User) => u.role === 'admin').map((admin: User) => (
+            <div key={admin.id} className={`flex items-center gap-2 p-2 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
+              <span>🛡️</span><span>{admin.email}</span><span className="text-xs opacity-50">(Админ)</span>
             </div>
           ))}
+          {users.filter((u: User) => u.role === 'admin').length === 0 && (
+            <div className="text-xs opacity-50 p-2">Назначьте администраторов из списка участников ниже</div>
+          )}
         </div>
       </div>
 
