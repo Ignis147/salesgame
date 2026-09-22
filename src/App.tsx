@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import { AppProvider, useAppState, CREATOR_EMAIL, CREATOR_PASSWORD, type User, type UserAchievement } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
@@ -48,7 +48,6 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [showHint, setShowHint] = useState(false);
 
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
 
@@ -135,22 +134,6 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
             {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
           </button>
         </div>
-
-        <button
-          onClick={() => setShowHint(!showHint)}
-          className="mt-4 w-full text-center text-xs opacity-50 hover:opacity-100 transition-opacity"
-        >
-          {showHint ? 'Скрыть подсказки' : 'Показать подсказки для входа'}
-        </button>
-
-        {showHint && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`mt-3 p-3 rounded-xl text-xs space-y-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <div className="font-bold mb-1">👑 Создатель:</div>
-            <div>{CREATOR_EMAIL} / {CREATOR_PASSWORD}</div>
-            <div className="font-bold mt-2 mb-1">👤 Или зарегистрируйте нового участника</div>
-            <div className="opacity-60">Создатель может назначать админов из панели "Команда"</div>
-          </motion.div>
-        )}
       </motion.div>
     </div>
   );
@@ -208,7 +191,7 @@ function AppContent() {
 
   const userNotifications = notifications.filter(n => n.userId === currentUser.id);
   const unreadCount = userNotifications.filter(n => !n.read).length;
-  const employees = users.filter(u => u.role === 'employee' || u.role === 'admin');
+  const employees = users.filter(u => u.role !== 'creator');
 
   const themeClass = darkMode ? 'dark' : '';
 
@@ -1134,7 +1117,8 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
   const [editDepartment, setEditDepartment] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'employee'>('employee');
 
-  const employees = users.filter(u => u.id !== currentUser.id);
+  // Показываем всех пользователей кроме создателя и самого себя (если не создатель)
+  const employees = users.filter(u => u.role !== 'creator' && u.id !== currentUser.id);
   const isCreator = currentUser.role === 'creator';
 
   const handleSave = (id: string) => {
