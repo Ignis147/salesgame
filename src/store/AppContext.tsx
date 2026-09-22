@@ -222,7 +222,9 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   // Initialize state from localStorage
   const [users, setUsers] = useState<User[]>(() => {
-    // Очищаем старые данные, оставляем только создателя
+    const stored = loadFromStorage<User[]>('sq_users', []);
+    
+    // Создаём создателя по умолчанию
     const creator: User = {
       id: 'creator-1',
       email: CREATOR_EMAIL,
@@ -243,7 +245,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       monthlyHistory: [],
       createdAt: new Date().toISOString(),
     };
-    return [creator];
+    
+    // Проверяем, есть ли создатель в сохранённых данных
+    const hasCreator = stored.some(u => u.email === CREATOR_EMAIL);
+    
+    if (hasCreator) {
+      // Если создатель есть, возвращаем сохранённых пользователей
+      return stored;
+    } else {
+      // Если создателя нет, добавляем его к сохранённым пользователям
+      return [creator, ...stored];
+    }
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -344,7 +356,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
+    
+    // Если никто не вошёл, новый пользователь становится текущим
+    // Если кто-то уже вошёл, текущий пользователь не меняется
+    if (!currentUser) {
+      setCurrentUser(newUser);
+    }
 
     // Add welcome notification
     const welcomeNotif: Notification = {
@@ -359,7 +376,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [welcomeNotif, ...prev]);
 
     return { success: true };
-  }, [users, companySettings.name]);
+  }, [users, companySettings.name, currentUser]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
