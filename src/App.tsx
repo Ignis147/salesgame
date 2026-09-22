@@ -799,10 +799,10 @@ function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { dar
 
 // ============ PROFILE VIEW ============
 function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { currentUser, updateCurrentUser } = useAppState();
+  const { currentUser, updateCurrentUser, isAdmin } = useAppState();
   if (!currentUser) return null;
 
-  const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
+  const admin = isAdmin();
   const xpPercent = (currentUser.xp / currentUser.xpToNext) * 100;
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser.name);
@@ -894,11 +894,13 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
       </motion.div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-pink-500">{personalPercent}%</div>
-          <div className="text-xs opacity-60 mt-1">План</div>
-        </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+        {!admin && (
+          <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+            <div className="text-2xl font-bold text-pink-500">{currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0}%</div>
+            <div className="text-xs opacity-60 mt-1">План</div>
+          </div>
+        )}
+        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'} ${admin ? 'sm:col-start-1' : ''}`}>
           <div className="text-2xl font-bold text-purple-500">{currentUser.achievements.length}</div>
           <div className="text-xs opacity-60 mt-1">Достижений</div>
         </div>
@@ -906,10 +908,12 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
           <div className="text-2xl font-bold text-amber-500">{currentUser.salesCoins}</div>
           <div className="text-xs opacity-60 mt-1">Монет</div>
         </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
-          <div className="text-xs opacity-60 mt-1">План ₽</div>
-        </div>
+        {!admin && (
+          <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
+            <div className="text-2xl font-bold text-blue-500">{(currentUser.plan / 1000).toFixed(0)}K</div>
+            <div className="text-xs opacity-60 mt-1">План ₽</div>
+          </div>
+        )}
       </div>
 
       {/* Avatar Picker Modal */}
@@ -1013,8 +1017,14 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
 
 // ============ CHALLENGES VIEW ============
 function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; showToast: (m: string) => void }) {
+  const { currentUser } = useAppState();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
-  const filtered = challenges.filter(c => c.type === activeTab);
+  
+  // Фильтруем челленджи: показываем общие (global) и назначенные текущему пользователю
+  const filtered = challenges.filter(c => 
+    c.type === activeTab && 
+    (c.userId === 'global' || c.userId === currentUser?.id || (c.assignedTo && c.assignedTo.includes(currentUser?.id || '')))
+  );
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -1277,7 +1287,7 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
 
 // ============ SETTINGS VIEW (Admin only) ============
 function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (m: string) => void }) {
-  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize } = useAppState();
+  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, users, planArchives, archiveCurrentMonthPlan } = useAppState();
 
   const [localName, setLocalName] = useState(companySettings.name);
   const [localColor, setLocalColor] = useState(companySettings.mainColor);
@@ -1292,6 +1302,17 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
   const [newPrizeDesc, setNewPrizeDesc] = useState('');
   const [newPrizeCost, setNewPrizeCost] = useState(100);
   const [newPrizeCat, setNewPrizeCat] = useState('Разное');
+
+  // New challenge form
+  const [showNewChallenge, setShowNewChallenge] = useState(false);
+  const [newChallengeTitle, setNewChallengeTitle] = useState('');
+  const [newChallengeDesc, setNewChallengeDesc] = useState('');
+  const [newChallengeEmoji, setNewChallengeEmoji] = useState('🎯');
+  const [newChallengeXP, setNewChallengeXP] = useState(50);
+  const [newChallengeTotal, setNewChallengeTotal] = useState(10);
+  const [newChallengeType, setNewChallengeType] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
+  const [newChallengeDeadline, setNewChallengeDeadline] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
   const handleSaveSettings = () => {
     updateCompanySettings({ name: localName, mainColor: localColor });
@@ -1310,6 +1331,46 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
     setNewPrizeName('');
     setNewPrizeDesc('');
     showToast('🎁 Приз добавлен!');
+  };
+
+  const handleAddChallenge = () => {
+    if (!newChallengeTitle.trim()) return;
+    const isGlobal = selectedUserIds.length === 0;
+    const challenge = {
+      id: Date.now().toString(),
+      userId: isGlobal ? 'global' : (currentUser?.id || 'global'),
+      title: newChallengeTitle,
+      description: newChallengeDesc,
+      emoji: newChallengeEmoji,
+      xpReward: newChallengeXP,
+      progress: 0,
+      total: newChallengeTotal,
+      deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
+      type: newChallengeType,
+      assignedTo: isGlobal ? undefined : selectedUserIds,
+    };
+    addChallenge(challenge);
+    
+    // Send notifications to assigned users
+    if (!isGlobal && selectedUserIds.length > 0) {
+      selectedUserIds.forEach(userId => {
+        const user = users.find(u => u.id === userId);
+        if (user) {
+          // Notification will be added via addNotification if available
+        }
+      });
+    }
+    
+    setShowNewChallenge(false);
+    setNewChallengeTitle('');
+    setNewChallengeDesc('');
+    setSelectedUserIds([]);
+    showToast('🎯 Челлендж создан!');
+  };
+
+  const handleArchiveMonth = () => {
+    archiveCurrentMonthPlan();
+    showToast('📦 Месяц заархивирован!');
   };
 
   const colors = [
@@ -1354,7 +1415,10 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
       <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold">📋 План отдела</h3>
-          <button onClick={handleSavePlan} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
+          <div className="flex gap-2">
+            <button onClick={handleArchiveMonth} className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Архивировать месяц</button>
+            <button onClick={handleSavePlan} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
+          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -1372,6 +1436,120 @@ function SettingsView({ darkMode, showToast }: { darkMode: boolean; showToast: (
             <input type="text" value={promoMonth} onChange={e => setPromoMonth(e.target.value)}
               className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
           </div>
+        </div>
+        <div className="mt-4 text-xs opacity-60">
+          <p>Текущий период: {departmentPlan.month}</p>
+        </div>
+      </div>
+
+      {/* Plan Archives */}
+      {planArchives.length > 0 && (
+        <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+          <h3 className="font-bold mb-4">📦 Архив планов ({planArchives.length})</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {planArchives.slice().reverse().map(archive => (
+              <div key={archive.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-sm">{archive.month} {archive.year}</div>
+                    <div className="text-xs opacity-60">План: {(archive.totalPlan / 1000).toFixed(0)}K ₽ • Факт: {(archive.totalFact / 1000).toFixed(0)}K ₽ • {archive.percentage}%</div>
+                  </div>
+                  <div className="text-xs opacity-40">{new Date(archive.archivedAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Challenges Management */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold">⚡ Управление челленджами ({challenges.length})</h3>
+          <button onClick={() => setShowNewChallenge(!showNewChallenge)} className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg text-xs font-bold flex items-center gap-1">
+            <Plus size={14} /> Создать
+          </button>
+        </div>
+
+        {showNewChallenge && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className={`mb-4 p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-yellow-50'} space-y-3`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs opacity-60">Название</label>
+                <input type="text" value={newChallengeTitle} onChange={e => setNewChallengeTitle(e.target.value)} placeholder="Например: 10 звонков"
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Тип</label>
+                <select value={newChallengeType} onChange={e => setNewChallengeType(e.target.value as any)}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`}>
+                  <option value="daily">Ежедневный</option>
+                  <option value="weekly">Еженедельный</option>
+                  <option value="seasonal">Сезонный</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Эмодзи</label>
+                <input type="text" value={newChallengeEmoji} onChange={e => setNewChallengeEmoji(e.target.value)}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Награда (XP)</label>
+                <input type="number" value={newChallengeXP} onChange={e => setNewChallengeXP(Number(e.target.value))}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Цель (кол-во)</label>
+                <input type="number" value={newChallengeTotal} onChange={e => setNewChallengeTotal(Number(e.target.value))}
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+              </div>
+              <div>
+                <label className="text-xs opacity-60">Дедлайн</label>
+                <input type="text" value={newChallengeDeadline} onChange={e => setNewChallengeDeadline(e.target.value)} placeholder="Завтра / Конец недели"
+                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs opacity-60">Описание</label>
+              <input type="text" value={newChallengeDesc} onChange={e => setNewChallengeDesc(e.target.value)} placeholder="Описание челленджа"
+                className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+            </div>
+            <div>
+              <label className="text-xs opacity-60">Назначить пользователям (оставьте пустым для общего)</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {users.filter(u => u.role === 'employee').map(user => (
+                  <button
+                    key={user.id}
+                    onClick={() => setSelectedUserIds(prev => prev.includes(user.id) ? prev.filter(id => id !== user.id) : [...prev, user.id])}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${selectedUserIds.includes(user.id) ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white' : darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-200 text-gray-600'}`}
+                  >
+                    {user.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setShowNewChallenge(false)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>Отмена</button>
+              <button onClick={handleAddChallenge} className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg text-xs font-bold">Создать челлендж</button>
+            </div>
+          </motion.div>
+        )}
+
+        <div className="space-y-2">
+          {challenges.map(challenge => (
+            <div key={challenge.id} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+              <span className="text-xl">{challenge.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">{challenge.title}</div>
+                <div className="text-xs opacity-60">{challenge.description} • +{challenge.xpReward} XP • {challenge.type}</div>
+                {challenge.assignedTo && challenge.assignedTo.length > 0 && (
+                  <div className="text-xs opacity-40">Назначен: {challenge.assignedTo.length} пользовател(ей)</div>
+                )}
+              </div>
+              <button onClick={() => { removeChallenge(challenge.id); showToast('Челлендж удалён'); }}
+                className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-red-500`}><Trash2 size={14} /></button>
+            </div>
+          ))}
         </div>
       </div>
 
