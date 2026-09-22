@@ -741,7 +741,10 @@ function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boo
             </span>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm truncate">{emp.name} {emp.id === currentUserId && <span className="text-pink-500 text-xs">(Вы)</span>}</div>
-              <div className="text-xs opacity-60">Ур. {emp.level} • {emp.achievements.length} значков • 🔥 {emp.streak}</div>
+              <div className="text-xs opacity-60">
+                {emp.department && <span className="mr-2">📋 {emp.department}</span>}
+                Ур. {emp.level} • {emp.achievements.length} значков • 🔥 {emp.streak}
+              </div>
             </div>
             <div className="text-right">
               <div className="font-bold text-sm">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
@@ -757,7 +760,11 @@ function LeaderboardView({ darkMode, employees, currentUserId }: { darkMode: boo
 
 // ============ ANALYTICS VIEW (Admin) ============
 function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { darkMode: boolean; employees: User[]; departmentPlan: any; showToast: (m: string) => void }) {
-  const teamData = employees.map(m => ({ name: m.name.split(' ')[0], percent: Math.round((m.fact / Math.max(m.plan, 1)) * 100) }));
+  const teamData = employees.map(m => ({ 
+    name: m.name.split(' ')[0], 
+    department: m.department || '',
+    percent: Math.round((m.fact / Math.max(m.plan, 1)) * 100) 
+  }));
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -885,7 +892,7 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
               <h2 className="text-2xl font-bold">{currentUser.name} <button onClick={() => setEditing(true)} className="text-sm opacity-60 hover:opacity-100">✏️</button></h2>
             )}
             <p className="opacity-80">{currentUser.email}</p>
-            <p className="opacity-60 text-sm">{currentUser.department}</p>
+            {currentUser.department && <p className="opacity-60 text-sm">📋 {currentUser.department}</p>}
             <div className="flex items-center gap-4 mt-3">
               <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">⭐ Уровень {currentUser.level}</span></div>
               <div className="bg-white/20 rounded-xl px-3 py-1.5"><span className="text-sm font-bold">🔥 {currentUser.streak} дней</span></div>
@@ -1124,12 +1131,20 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
   const [editPlan, setEditPlan] = useState(0);
   const [editFact, setEditFact] = useState(0);
   const [editName, setEditName] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'employee'>('employee');
 
   const employees = users.filter(u => u.id !== currentUser.id);
   const isCreator = currentUser.role === 'creator';
 
   const handleSave = (id: string) => {
-    updateUser(id, { plan: editPlan, fact: editFact, name: editName });
+    updateUser(id, { 
+      plan: editPlan, 
+      fact: editFact, 
+      name: editName,
+      department: editDepartment,
+      role: editRole
+    });
     setEditingId(null);
     showToast('✅ Данные обновлены!');
   };
@@ -1165,23 +1180,56 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
           <div key={emp.id} className={`p-4 ${i !== employees.length - 1 ? `border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}` : ''}`}>
             {editingId === emp.id ? (
               <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs opacity-60">Имя</label>
                     <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
                       className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
                   </div>
                   <div>
-                    <label className="text-xs opacity-60">План (₽)</label>
+                    <label className="text-xs opacity-60">Должность / Отдел</label>
+                    <input type="text" value={editDepartment} onChange={e => setEditDepartment(e.target.value)}
+                      placeholder="Менеджер по продажам"
+                      className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+                  </div>
+                  <div>
+                    <label className="text-xs opacity-60">План месяца (₽)</label>
                     <input type="number" value={editPlan} onChange={e => setEditPlan(Number(e.target.value))}
                       className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
                   </div>
                   <div>
-                    <label className="text-xs opacity-60">Факт (₽)</label>
+                    <label className="text-xs opacity-60">Факт продаж (₽)</label>
                     <input type="number" value={editFact} onChange={e => setEditFact(Number(e.target.value))}
                       className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
                   </div>
                 </div>
+                {isCreator && (
+                  <div>
+                    <label className="text-xs opacity-60">Роль</label>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => setEditRole('employee')}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          editRole === 'employee'
+                            ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                            : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        👤 Участник
+                      </button>
+                      <button
+                        onClick={() => setEditRole('admin')}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          editRole === 'admin'
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                            : darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        🛡️ Администратор
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button onClick={() => setEditingId(null)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>Отмена</button>
                   <button onClick={() => handleSave(emp.id)} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={12} /> Сохранить</button>
@@ -1201,13 +1249,22 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
                     {emp.name}
                     {emp.role === 'admin' && <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full">🛡️ Админ</span>}
                   </div>
-                  <div className="text-xs opacity-60">{emp.email} • План: {(emp.plan / 1000).toFixed(0)}K ₽ • Факт: {(emp.fact / 1000).toFixed(0)}K ₽</div>
+                  <div className="text-xs opacity-60">{emp.email}</div>
+                  {emp.department && <div className="text-xs opacity-60">📋 {emp.department}</div>}
+                  <div className="text-xs opacity-60">План: {(emp.plan / 1000).toFixed(0)}K ₽ • Факт: {(emp.fact / 1000).toFixed(0)}K ₽</div>
                 </div>
                 <div className="text-right hidden sm:block">
                   <div className="font-bold text-sm">{Math.round((emp.fact / Math.max(emp.plan, 1)) * 100)}%</div>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => { setEditingId(emp.id); setEditPlan(emp.plan); setEditFact(emp.fact); setEditName(emp.name); }}
+                  <button onClick={() => { 
+                    setEditingId(emp.id); 
+                    setEditPlan(emp.plan); 
+                    setEditFact(emp.fact); 
+                    setEditName(emp.name);
+                    setEditDepartment(emp.department || '');
+                    setEditRole(emp.role === 'admin' ? 'admin' : 'employee');
+                  }}
                     className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-blue-50'} text-blue-500`} title="Редактировать"><Edit3 size={16} /></button>
                   {isCreator && emp.role !== 'creator' && (
                     <>

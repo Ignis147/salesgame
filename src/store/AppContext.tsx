@@ -222,33 +222,28 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   // Initialize state from localStorage
   const [users, setUsers] = useState<User[]>(() => {
-    const stored = loadFromStorage<User[]>('sq_users', []);
-    // Ensure creator exists
-    const hasCreator = stored.some(u => u.email === CREATOR_EMAIL);
-    if (!hasCreator) {
-      const creator: User = {
-        id: 'creator-1',
-        email: CREATOR_EMAIL,
-        password: CREATOR_PASSWORD,
-        name: 'Создатель',
-        avatar: '👑',
-        role: 'creator',
-        department: 'Управление',
-        level: 1,
-        xp: 0,
-        xpToNext: 1000,
-        streak: 0,
-        plan: 0,
-        fact: 0,
-        salesCoins: 0,
-        profileColor: 'pink',
-        achievements: [],
-        monthlyHistory: [],
-        createdAt: new Date().toISOString(),
-      };
-      return [creator, ...stored];
-    }
-    return stored;
+    // Очищаем старые данные, оставляем только создателя
+    const creator: User = {
+      id: 'creator-1',
+      email: CREATOR_EMAIL,
+      password: CREATOR_PASSWORD,
+      name: 'Создатель',
+      avatar: '👑',
+      role: 'creator',
+      department: 'Управление',
+      level: 1,
+      xp: 0,
+      xpToNext: 1000,
+      streak: 0,
+      plan: 0,
+      fact: 0,
+      salesCoins: 0,
+      profileColor: 'pink',
+      achievements: [],
+      monthlyHistory: [],
+      createdAt: new Date().toISOString(),
+    };
+    return [creator];
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
