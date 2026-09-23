@@ -112,6 +112,7 @@ export interface DepartmentPlan {
 
 export interface MonthlyPlanArchive {
   id: string;
+  name?: string;
   month: string;
   year: number;
   totalPlan: number;
