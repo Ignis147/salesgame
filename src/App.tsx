@@ -181,7 +181,6 @@ function AppContent() {
   const showToast = useCallback((msg: string) => setToast(msg), []);
 
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
-  const interfaceColor = COLOR_MAP[currentUser.interfaceColor] || COLOR_MAP.pink;
   const admin = isAdmin();
 
   // Show confetti only when receiving an admin-granted achievement (handled in grantAchievementToUser)
@@ -206,7 +205,7 @@ function AppContent() {
 
   return (
     <div className={`${themeClass} min-h-screen font-['Nunito',sans-serif]`}>
-      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : `bg-gradient-to-br ${interfaceColor.light} text-gray-800`}`}>
+      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : `bg-gradient-to-br ${color.light} text-gray-800`}`}>
         {showConfetti && <ReactConfetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={200} colors={['#ff69b4', '#ffd700', '#87ceeb', '#98fb98', '#dda0dd']} />}
 
         {/* Achievement Popup */}
@@ -295,10 +294,12 @@ function AppContent() {
                 <>
                   <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} />
                   <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
-                  <SidebarItem icon={<Settings size={20} />} label="Администрирование задач" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+                  <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
                 </>
               )}
-              <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
+              {!admin && (
+                <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
+              )}
             </nav>
           </aside>
 
@@ -322,10 +323,9 @@ function AppContent() {
                       <>
                         <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => { setCurrentView('analytics'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setShowMobileMenu(false); }} />
-                        <SidebarItem icon={<Settings size={20} />} label="Администрирование задач" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
+                        <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
                       </>
                     )}
-                    <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => { setCurrentView('profile'); setShowMobileMenu(false); }} />
                   </nav>
                   <button onClick={() => { logout(); setShowMobileMenu(false); }} className="w-full mt-6 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
                     <LogOut size={20} /> Выйти
@@ -935,12 +935,12 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
         <p className="text-sm opacity-60 mb-4">Выберите цвет для вашего личного интерфейса</p>
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
           {profileColors.map((c) => (
-            <button key={c.value} onClick={() => { updateCurrentUser({ interfaceColor: c.value }); showToast('🎨 Цвет интерфейса обновлён!'); }}
-              className={`h-14 rounded-xl bg-gradient-to-r ${c.gradient} ring-3 transition-all ${currentUser.interfaceColor === c.value ? 'ring-offset-2 ring-pink-400 scale-110 shadow-lg' : 'ring-transparent hover:scale-105'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
+            <button key={c.value} onClick={() => { updateCurrentUser({ profileColor: c.value }); showToast('🎨 Цвет интерфейса обновлён!'); }}
+              className={`h-14 rounded-xl bg-gradient-to-r ${c.gradient} ring-3 transition-all ${currentUser.profileColor === c.value ? 'ring-offset-2 ring-pink-400 scale-110 shadow-lg' : 'ring-transparent hover:scale-105'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
               title={c.label} />
           ))}
         </div>
-        <p className="text-xs opacity-50 mt-4">Текущий цвет: {colors.find(c => c.value === currentUser.interfaceColor)?.label || 'Розовый'}</p>
+        <p className="text-xs opacity-50 mt-4">Текущий цвет: {currentColor.label}</p>
       </div>
 
       {/* My Achievements */}
