@@ -335,7 +335,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges.filter(c => c.userId === 'global' || c.userId === currentUser.id || (c.assignedTo && c.assignedTo.includes(currentUser.id || '')))} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
@@ -970,10 +970,20 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   
   // Фильтруем челленджи: показываем общие (global) и назначенные текущему пользователю
-  const filtered = challenges.filter(c => 
-    c.type === activeTab && 
-    (c.userId === 'global' || c.userId === currentUser?.id || (c.assignedTo && c.assignedTo.includes(currentUser?.id || '')))
-  );
+  // Персональные челленджи видны только тому, кому назначены, и администраторам
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'creator';
+  const filtered = challenges.filter(c => {
+    if (c.type !== activeTab) return false;
+    
+    // Если челлендж глобальный - видим всем
+    if (!c.assignedTo || c.assignedTo.length === 0) {
+      return c.userId === 'global';
+    }
+    
+    // Если челлендж персональный - видим только назначенным пользователям и админам
+    if (isAdmin) return true;
+    return c.assignedTo.includes(currentUser?.id || '');
+  });
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -998,7 +1008,11 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((challenge, i) => (
+          {filtered.map((challenge, i) => {
+            // Проверяем, может ли пользователь редактировать этот челлендж
+            const canEdit = isAdmin || (challenge.assignedTo && challenge.assignedTo.includes(currentUser?.id || ''));
+            
+            return (
             <motion.div key={challenge.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
               className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
               <div className="flex items-start gap-4">
@@ -1016,7 +1030,7 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                       <span>⏰ {challenge.deadline}</span>
                     </div>
                   </div>
-                  {challenge.progress < challenge.total && (
+                  {challenge.progress < challenge.total && canEdit && (
                     <button onClick={() => { updateChallenge(challenge.id, { progress: challenge.progress + 1 }); if (challenge.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
@@ -1024,7 +1038,8 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
