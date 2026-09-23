@@ -1304,7 +1304,7 @@ function SettingsView({
   users: User[];
   currentUser: User;
 }) {
-  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, planArchives, archiveCurrentMonthPlan } = useAppState();
+  const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, planArchives, archiveCurrentMonthPlan, updatePlanArchive, removePlanArchive } = useAppState();
 
   const [localName, setLocalName] = useState(companySettings.name);
   const [localColor, setLocalColor] = useState(companySettings.mainColor);
@@ -1552,11 +1552,20 @@ function SettingsView({
             {planArchives.slice().reverse().map(archive => (
               <div key={archive.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1">
                     <div className="font-medium text-sm">{archive.month} {archive.year}</div>
                     <div className="text-xs opacity-60">План: {(archive.totalPlan / 1000).toFixed(0)}K ₽ • Факт: {(archive.totalFact / 1000).toFixed(0)}K ₽ • {archive.percentage}%</div>
                   </div>
-                  <div className="text-xs opacity-40">{new Date(archive.archivedAt).toLocaleDateString()}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs opacity-40">{new Date(archive.archivedAt).toLocaleDateString()}</div>
+                    <button onClick={() => {
+                      const newTotal = prompt('Введите новый общий план:', String(archive.totalPlan));
+                      if (newTotal !== null) updatePlanArchive(archive.id, { totalPlan: Number(newTotal) });
+                    }} className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500" title="Редактировать"><Edit3 size={14} /></button>
+                    <button onClick={() => {
+                      if (confirm('Удалить этот архив?')) removePlanArchive(archive.id);
+                    }} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500" title="Удалить"><Trash2 size={14} /></button>
+                  </div>
                 </div>
               </div>
             ))}

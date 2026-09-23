@@ -263,6 +263,8 @@ interface AppState {
   updateCompanySettings: (data: Partial<CompanySettings>) => void;
   
   archiveCurrentMonthPlan: () => void;
+  updatePlanArchive: (id: string, data: Partial<MonthlyPlanArchive>) => void;
+  removePlanArchive: (id: string) => void;
 
   spendCoins: (amount: number) => void;
 
@@ -591,6 +593,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, [planArchives, users]);
 
+  const updatePlanArchive = useCallback((id: string, data: Partial<MonthlyPlanArchive>) => {
+    setPlanArchives(prev => prev.map(archive => 
+      archive.id === id ? { ...archive, ...data } : archive
+    ));
+  }, []);
+
+  const removePlanArchive = useCallback((id: string) => {
+    setPlanArchives(prev => prev.filter(archive => archive.id !== id));
+  }, []);
+
   const grantAchievementToUser = useCallback((userId: string, achievementId: string) => {
     const template = achievementTemplates.find(a => a.id === achievementId);
     if (!template) return;
@@ -679,6 +691,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateDepartmentPlan,
       updateCompanySettings,
       archiveCurrentMonthPlan,
+      updatePlanArchive,
+      removePlanArchive,
       spendCoins,
       addAchievementTemplate: (template) => setAchievementTemplates(prev => [...prev, template]),
       updateAchievementTemplate: (id, data) => setAchievementTemplates(prev => prev.map(a => a.id === id ? { ...a, ...data } : a)),
