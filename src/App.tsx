@@ -998,19 +998,18 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
 }
 
 // ============ CHALLENGES VIEW ============
-function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; showToast: (m: string) => void }) {
+function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimChallengeReward, showToast }: { darkMode: boolean; challenges: any[]; updateChallengeProgress: (id: string, userId: string, delta: number) => void; claimChallengeReward: (id: string, userId: string) => void; showToast: (m: string) => void }) {
   const { currentUser } = useAppState();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   
-  // Фильтруем челленджи: показываем общие (global) и назначенные текущему пользователю
-  // Персональные челленджи видны только тому, кому назначены, и администраторам
+  // Фильтруем челленджи: показываем только назначенные текущему пользователю и администраторам
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'creator';
   const filtered = challenges.filter(c => {
     if (c.type !== activeTab) return false;
     
-    // Если челлендж глобальный - видим всем
+    // Если челлендж не назначен никому - не показываем (теперь все челленджи должны быть назначены)
     if (!c.assignedTo || c.assignedTo.length === 0) {
-      return c.userId === 'global';
+      return false;
     }
     
     // Если челлендж персональный - видим только назначенным пользователям и админам
@@ -1042,8 +1041,11 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
       ) : (
         <div className="space-y-4">
           {filtered.map((challenge, i) => {
-            // Проверяем, может ли пользователь редактировать этот челлендж
-            const canEdit = isAdmin || (challenge.assignedTo && challenge.assignedTo.includes(currentUser?.id || ''));
+            // Получаем прогресс текущего пользователя
+            const userProgress = challenge.progressByUser?.[currentUser?.id || ''] || { progress: 0, completed: false, rewardClaimed: false };
+            const percentage = (userProgress.progress / challenge.total) * 100;
+            const isCompleted = userProgress.completed;
+            const canClaimReward = isCompleted && !userProgress.rewardClaimed;
             
             return (
             <motion.div key={challenge.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
@@ -1057,17 +1059,21 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                   </div>
                   <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
                   <div className="mt-3">
-                    <ProgressBar percentage={(challenge.progress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
+                    <ProgressBar percentage={percentage} color="from-yellow-400 to-orange-400" />
                     <div className="flex justify-between mt-1 text-xs opacity-60">
-                      <span>{challenge.progress}/{challenge.total}</span>
+                      <span>{userProgress.progress}/{challenge.total}</span>
                       <span>⏰ {challenge.deadline}</span>
                     </div>
                   </div>
-                  {challenge.progress < challenge.total && canEdit && (
-                    <button onClick={() => { updateChallenge(challenge.id, { progress: challenge.progress + 1 }); if (challenge.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
+                  {!isCompleted && (
+                    <button onClick={() => { updateChallengeProgress(challenge.id, currentUser?.id || '', 1); if (userProgress.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
-                  {challenge.progress >= challenge.total && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено!</span>}
+                  {canClaimReward && (
+                    <button onClick={() => { claimChallengeReward(challenge.id, currentUser?.id || ''); showToast(`🎉 Получено ${challenge.xpReward} EAST coin!`); }}
+                      className="mt-2 ml-2 px-3 py-1 bg-gradient-to-r from-green-400 to-emerald-400 text-white rounded-lg text-xs font-bold">Получить награду</button>
+                  )}
+                  {isCompleted && userProgress.rewardClaimed && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Награда получена!</span>}
                 </div>
               </div>
             </motion.div>
