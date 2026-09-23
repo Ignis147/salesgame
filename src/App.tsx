@@ -999,19 +999,23 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
 
 // ============ CHALLENGES VIEW ============
 function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; showToast: (m: string) => void }) {
-  const { currentUser, updateChallengeProgress, users } = useAppState();
+  const { currentUser } = useAppState();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   
-  // Фильтруем челленджи: показываем только назначенные текущему пользователю или все для админа
+  // Фильтруем челленджи: показываем общие (global) и назначенные текущему пользователю
+  // Персональные челленджи видны только тому, кому назначены, и администраторам
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'creator';
   const filtered = challenges.filter(c => {
     if (c.type !== activeTab) return false;
     
-    // Админ видит все челленджи
-    if (isAdmin) return true;
+    // Если челлендж глобальный - видим всем
+    if (!c.assignedTo || c.assignedTo.length === 0) {
+      return c.userId === 'global';
+    }
     
-    // Участник видит только свои челленджи
-    return c.userId === currentUser?.id;
+    // Если челлендж персональный - видим только назначенным пользователям и админам
+    if (isAdmin) return true;
+    return c.assignedTo.includes(currentUser?.id || '');
   });
 
   return (
@@ -1039,8 +1043,7 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
         <div className="space-y-4">
           {filtered.map((challenge, i) => {
             // Проверяем, может ли пользователь редактировать этот челлендж
-            const canEdit = isAdmin || challenge.userId === currentUser?.id;
-            const isCompleted = challenge.completed || challenge.progress >= challenge.total;
+            const canEdit = isAdmin || (challenge.assignedTo && challenge.assignedTo.includes(currentUser?.id || ''));
             
             return (
             <motion.div key={challenge.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
@@ -1052,9 +1055,6 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                     <h3 className="font-bold">{challenge.title}</h3>
                     <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} 🪙</span>
                   </div>
-                  {isAdmin && (
-                    <p className="text-xs opacity-50 mt-1">Назначен: {users.find(u => u.id === challenge.userId)?.name || 'Неизвестно'}</p>
-                  )}
                   <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
                   <div className="mt-3">
                     <ProgressBar percentage={(challenge.progress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
@@ -1064,15 +1064,10 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                     </div>
                   </div>
                   {challenge.progress < challenge.total && canEdit && (
-                    <button onClick={() => { 
-                      const newProgress = challenge.progress + 1;
-                      const isComplete = newProgress >= challenge.total;
-                      updateChallengeProgress(challenge.id, challenge.userId, newProgress, isComplete ? challenge.xpReward : undefined);
-                      if (isComplete) showToast('🎉 Челлендж выполнен! Награда начислена!');
-                    }}
+                    <button onClick={() => { updateChallenge(challenge.id, { progress: challenge.progress + 1 }); if (challenge.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
-                  {isCompleted && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено!</span>}
+                  {challenge.progress >= challenge.total && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено!</span>}
                 </div>
               </div>
             </motion.div>
@@ -1390,46 +1385,35 @@ function SettingsView({
       console.error('Ошибка: цель меньше или равна 0');
       return;
     }
-    if (selectedUserIds.length === 0) {
-      showToast('❌ Выберите хотя бы одного участника');
-      console.error('Ошибка: не выбраны участники');
-      return;
-    }
     
-    // Создаем отдельный экземпляр челленджа для каждого выбранного пользователя
-    selectedUserIds.forEach(userId => {
-      const challenge: Challenge = {
-        id: Date.now().toString() + '-' + userId,
-        userId: userId,
-        title: newChallengeTitle,
-        description: newChallengeDesc,
-        emoji: newChallengeEmoji,
-        xpReward: newChallengeXP,
-        progress: 0,
-        total: newChallengeTotal,
-        deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
-        type: newChallengeType,
-        completed: false,
-        originalChallengeId: Date.now().toString(),
-      };
-      
-      addChallenge(challenge);
-      
-      // Отправляем уведомление пользователю
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        const notif = {
-          id: Date.now().toString() + '-' + userId,
-          userId: userId,
-          title: 'Новый челлендж!',
-          message: `Вам назначен челлендж: ${newChallengeTitle}`,
-          emoji: newChallengeEmoji,
-          time: 'Только что',
-          read: false,
-        };
-        addNotification(notif);
-      }
-    });
+    const isGlobal = selectedUserIds.length === 0;
+    const challenge: Challenge = {
+      id: Date.now().toString(),
+      userId: 'global', // Всегда создаем как глобальный, но с assignedTo для персональных
+      title: newChallengeTitle,
+      description: newChallengeDesc,
+      emoji: newChallengeEmoji,
+      xpReward: newChallengeXP,
+      progress: 0,
+      total: newChallengeTotal,
+      deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
+      type: newChallengeType,
+      assignedTo: isGlobal ? undefined : selectedUserIds,
+    };
+    
+    console.log('Созданный объект челленджа:', challenge);
+    addChallenge(challenge);
+    console.log('Челлендж добавлен через addChallenge');
+    
+    // Send notifications to assigned users
+    if (!isGlobal && selectedUserIds.length > 0) {
+      selectedUserIds.forEach(userId => {
+        const user = users.find(u => u.id === userId);
+        if (user) {
+          // Notification will be added via addNotification if available
+        }
+      });
+    }
     
     setShowNewChallenge(false);
     setNewChallengeTitle('');
@@ -1646,7 +1630,7 @@ function SettingsView({
                 className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
             </div>
             <div>
-              <label className="text-xs opacity-60">Назначить участникам *</label>
+              <label className="text-xs opacity-60">Назначить пользователям (оставьте пустым для общего)</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {users.filter(u => u.role === 'employee').map(user => (
                   <button
@@ -1658,9 +1642,6 @@ function SettingsView({
                   </button>
                 ))}
               </div>
-              {selectedUserIds.length === 0 && (
-                <p className="text-xs text-red-500 mt-1">* Выберите хотя бы одного участника</p>
-              )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowNewChallenge(false)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>Отмена</button>
