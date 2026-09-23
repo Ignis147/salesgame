@@ -20,6 +20,18 @@ export interface User {
   achievements: UserAchievement[];
   monthlyHistory: MonthlyRecord[];
   createdAt: string;
+  purchasedPrizes: PurchasedPrize[];
+}
+
+export interface PurchasedPrize {
+  id: string;
+  prizeId: string;
+  name: string;
+  emoji: string;
+  description: string;
+  cost: number;
+  category: string;
+  purchasedAt: string;
 }
 
 export interface UserAchievement {
@@ -288,6 +300,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profileColor: 'pink',
       achievements: [],
       monthlyHistory: [],
+      purchasedPrizes: [],
       createdAt: new Date().toISOString(),
     };
     
@@ -401,6 +414,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       profileColor: 'pink',
       achievements: [...DEFAULT_ACHIEVEMENTS],
       monthlyHistory: DEFAULT_MONTHLY_HISTORY.map(r => ({ ...r, fact: 0, percentage: 0 })),
+      purchasedPrizes: [],
       createdAt: new Date().toISOString(),
     };
 
@@ -471,10 +485,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCompanySettings(prev => ({ ...prev, ...data }));
   }, []);
 
-  const spendCoins = useCallback((amount: number) => {
+  const spendCoins = useCallback((amount: number, prize?: Prize) => {
     if (!currentUser) return;
     const newCoins = Math.max(0, currentUser.salesCoins - amount);
-    updateCurrentUser({ salesCoins: newCoins });
+    let updateData: Partial<User> = { salesCoins: newCoins };
+    
+    // Если передан приз, добавляем его в купленные
+    if (prize) {
+      const purchasedPrize: PurchasedPrize = {
+        id: generateId(),
+        prizeId: prize.id,
+        name: prize.name,
+        emoji: prize.emoji,
+        description: prize.description,
+        cost: prize.cost,
+        category: prize.category,
+        purchasedAt: new Date().toISOString(),
+      };
+      updateData.purchasedPrizes = [...(currentUser.purchasedPrizes || []), purchasedPrize];
+    }
+    
+    updateCurrentUser(updateData);
   }, [currentUser, updateCurrentUser]);
 
   const addNotification = useCallback((notif: Notification) => {
