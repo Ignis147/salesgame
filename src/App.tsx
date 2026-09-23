@@ -339,7 +339,7 @@ function AppContent() {
           <main className="flex-1 p-4 sm:p-6 min-h-[calc(100vh-64px)]">
             <AnimatePresence mode="wait">
               <motion.div key={currentView + currentUser.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} />}
+                {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} currentUser={currentUser} />}
                 {currentView === 'achievements' && <AchievementsView darkMode={darkMode} isAdmin={admin} />}
                 {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name) => { spendCoins(amount); showToast(`🎉 Вы обменяли "${name}"!`); }} />}
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
@@ -387,8 +387,8 @@ function MobileNavItem({ icon, label, active, onClick }: { icon: React.ReactNode
 }
 
 // ============ HOME VIEW ============
-function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast }: { darkMode: boolean; admin: boolean; employees: User[]; departmentPlan: any; color: any; showToast: (m: string) => void }) {
-  const { currentUser, updateCurrentUser } = useAppState();
+function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast, currentUser }: { darkMode: boolean; admin: boolean; employees: User[]; departmentPlan: any; color: any; showToast: (m: string) => void; currentUser: User }) {
+  const { updateCurrentUser } = useAppState();
   if (!currentUser) return null;
 
   const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
@@ -408,6 +408,46 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       {/* Welcome Banner - Individual for each user */}
+      {/* Important Announcements, Brand of Month, Promo of Month */}
+      {(departmentPlan.brandOfMonth || departmentPlan.promoOfMonth || departmentPlan.importantAnnouncements) && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+          className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <span className="text-yellow-500">📢</span>
+            Информация для команды
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {departmentPlan.brandOfMonth && (
+              <div className={`p-4 rounded-xl ${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'} border ${darkMode ? 'border-blue-800' : 'border-blue-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🏆</span>
+                  <span className="font-bold text-sm opacity-70">Бренд месяца</span>
+                </div>
+                <p className="font-bold text-lg">{departmentPlan.brandOfMonth}</p>
+              </div>
+            )}
+            {departmentPlan.promoOfMonth && (
+              <div className={`p-4 rounded-xl ${darkMode ? 'bg-green-900/20' : 'bg-green-50'} border ${darkMode ? 'border-green-800' : 'border-green-100'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🔥</span>
+                  <span className="font-bold text-sm opacity-70">Акция месяца</span>
+                </div>
+                <p className="font-bold text-lg">{departmentPlan.promoOfMonth}</p>
+              </div>
+            )}
+          </div>
+          {departmentPlan.importantAnnouncements && (
+            <div className={`mt-4 p-4 rounded-xl ${darkMode ? 'bg-amber-900/20' : 'bg-amber-50'} border ${darkMode ? 'border-amber-800' : 'border-amber-100'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">⚠️</span>
+                <span className="font-bold text-sm opacity-70">Важные объявления</span>
+              </div>
+              <p className="whitespace-pre-wrap">{departmentPlan.importantAnnouncements}</p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${color.gradient}`} text-white`}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -1288,6 +1328,7 @@ function SettingsView({
   const [planTotal, setPlanTotal] = useState(departmentPlan.total);
   const [brandMonth, setBrandMonth] = useState(departmentPlan.brandOfMonth);
   const [promoMonth, setPromoMonth] = useState(departmentPlan.promoOfMonth);
+  const [importantAnnouncements, setImportantAnnouncements] = useState(departmentPlan.importantAnnouncements);
 
   // New prize form
   const [showNewPrize, setShowNewPrize] = useState(false);
@@ -1325,7 +1366,7 @@ function SettingsView({
   };
 
   const handleSavePlan = () => {
-    updateDepartmentPlan({ total: planTotal, brandOfMonth: brandMonth, promoOfMonth: promoMonth });
+    updateDepartmentPlan({ total: planTotal, brandOfMonth: brandMonth, promoOfMonth: promoMonth, importantAnnouncements });
     showToast('✅ План отдела обновлён!');
   };
 
@@ -1471,13 +1512,6 @@ function SettingsView({
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium opacity-70">Название компании</label>
-            <div className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-500'} cursor-not-allowed`}>
-              {companySettings.name}
-            </div>
-            <p className="text-xs opacity-50 mt-1">⚠️ Название компании доступно только для просмотра</p>
-          </div>
-          <div>
             <label className="text-sm font-medium opacity-70">Цвет интерфейса</label>
             <div className="flex gap-3 mt-2 flex-wrap">
               {colors.map(c => (
@@ -1515,6 +1549,12 @@ function SettingsView({
             <input type="text" value={promoMonth} onChange={e => setPromoMonth(e.target.value)}
               className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
           </div>
+        </div>
+        <div className="mt-4">
+          <label className="text-xs opacity-60 font-medium">Важные объявления</label>
+          <textarea value={importantAnnouncements} onChange={e => setImportantAnnouncements(e.target.value)} rows={3}
+            className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300 resize-none`} 
+            placeholder="Введите важные объявления для команды..." />
         </div>
         <div className="mt-4 text-xs opacity-60">
           <p>Текущий период: {departmentPlan.month}</p>
