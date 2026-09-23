@@ -1,4 +1,81 @@
 ```
+# Dependencies
+node_modules/
+
 # Build artifacts
 dist/
+build/
+
+# Vite specific
+.node_build/
+.vite/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Compiled and binary
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Compression
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Cache
+.mypy_cache/
+.pytest_cache/
+.gradle/
+target/
+
+# System
+.DS_Store
+Thumbs.db
 ```
