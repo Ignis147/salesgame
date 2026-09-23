@@ -23,6 +23,16 @@ const COLOR_MAP: Record<string, { gradient: string; light: string; hex: string }
   green: { gradient: 'from-green-400 via-emerald-400 to-teal-400', light: 'from-green-50 via-emerald-50 to-teal-50', hex: '#22c55e' },
   amber: { gradient: 'from-amber-400 via-orange-400 to-yellow-400', light: 'from-amber-50 via-orange-50 to-yellow-50', hex: '#f59e0b' },
   red: { gradient: 'from-red-400 via-rose-400 to-pink-400', light: 'from-red-50 via-rose-50 to-pink-50', hex: '#ef4444' },
+  cyan: { gradient: 'from-cyan-400 via-blue-400 to-indigo-400', light: 'from-cyan-50 via-blue-50 to-indigo-50', hex: '#06b6d4' },
+  rose: { gradient: 'from-rose-400 via-pink-400 to-fuchsia-400', light: 'from-rose-50 via-pink-50 to-fuchsia-50', hex: '#f43f5e' },
+  teal: { gradient: 'from-teal-400 via-green-400 to-emerald-400', light: 'from-teal-50 via-green-50 to-emerald-50', hex: '#14b8a6' },
+  indigo: { gradient: 'from-indigo-400 via-purple-400 to-pink-400', light: 'from-indigo-50 via-purple-50 to-pink-50', hex: '#6366f1' },
+  orange: { gradient: 'from-orange-400 via-amber-400 to-yellow-400', light: 'from-orange-50 via-amber-50 to-yellow-50', hex: '#f97316' },
+  lime: { gradient: 'from-lime-400 via-green-400 to-teal-400', light: 'from-lime-50 via-green-50 to-teal-50', hex: '#84cc16' },
+  sky: { gradient: 'from-sky-400 via-blue-400 to-indigo-400', light: 'from-sky-50 via-blue-50 to-indigo-50', hex: '#0ea5e9' },
+  violet: { gradient: 'from-violet-400 via-fuchsia-400 to-pink-400', light: 'from-violet-50 via-fuchsia-50 to-pink-50', hex: '#8b5cf6' },
+  slate: { gradient: 'from-slate-400 via-gray-400 to-zinc-400', light: 'from-slate-50 via-gray-50 to-zinc-50', hex: '#64748b' },
+  emerald: { gradient: 'from-emerald-400 via-green-400 to-cyan-400', light: 'from-emerald-50 via-green-50 to-cyan-50', hex: '#10b981' },
 };
 
 // ============ TOAST ============
@@ -1437,6 +1447,16 @@ function SettingsView({
     { value: 'green', label: 'Зелёный', preview: 'bg-green-500' },
     { value: 'amber', label: 'Золотой', preview: 'bg-amber-500' },
     { value: 'red', label: 'Красный', preview: 'bg-red-500' },
+    { value: 'cyan', label: 'Бирюзовый', preview: 'bg-cyan-500' },
+    { value: 'rose', label: 'Коралловый', preview: 'bg-rose-500' },
+    { value: 'teal', label: 'Мятный', preview: 'bg-teal-500' },
+    { value: 'indigo', label: 'Индиго', preview: 'bg-indigo-500' },
+    { value: 'orange', label: 'Оранжевый', preview: 'bg-orange-500' },
+    { value: 'lime', label: 'Лайм', preview: 'bg-lime-500' },
+    { value: 'sky', label: 'Небесный', preview: 'bg-sky-500' },
+    { value: 'violet', label: 'Фиалковый', preview: 'bg-violet-500' },
+    { value: 'slate', label: 'Серый', preview: 'bg-slate-500' },
+    { value: 'emerald', label: 'Изумрудный', preview: 'bg-emerald-500' },
   ];
 
   return (
@@ -1452,8 +1472,10 @@ function SettingsView({
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium opacity-70">Название компании</label>
-            <input type="text" value={localName} onChange={e => setLocalName(e.target.value)}
-              className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+            <div className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-500'} cursor-not-allowed`}>
+              {companySettings.name}
+            </div>
+            <p className="text-xs opacity-50 mt-1">⚠️ Название компании доступно только для просмотра</p>
           </div>
           <div>
             <label className="text-sm font-medium opacity-70">Цвет интерфейса</label>
