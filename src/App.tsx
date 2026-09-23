@@ -929,29 +929,18 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
         )}
       </AnimatePresence>
 
-      {/* Customization */}
+      {/* Customization - Available for ALL users */}
       <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4">🎨 Персонализация</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button onClick={() => setShowAvatarPicker(true)}
-            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
-            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-xl overflow-hidden">
-              {isImageAvatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" /> : currentUser.avatar}
-            </div>
-            <div className="text-left">
-              <div className="font-bold text-sm">Изменить аватар</div>
-              <div className="text-xs opacity-60">Эмодзи или своё фото</div>
-            </div>
-          </button>
-          <button onClick={() => setShowColorPicker(true)}
-            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
-            <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${currentColor.gradient}`} />
-            <div className="text-left">
-              <div className="font-bold text-sm">Цвет профиля</div>
-              <div className="text-xs opacity-60">{currentColor.label}</div>
-            </div>
-          </button>
+        <h3 className="font-bold text-lg mb-4">🎨 Цвет интерфейса</h3>
+        <p className="text-sm opacity-60 mb-4">Выберите цвет для вашего личного интерфейса</p>
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+          {profileColors.map((c) => (
+            <button key={c.value} onClick={() => { updateCurrentUser({ profileColor: c.value }); showToast('🎨 Цвет интерфейса обновлён!'); }}
+              className={`h-14 rounded-xl bg-gradient-to-r ${c.gradient} ring-3 transition-all ${currentUser.profileColor === c.value ? 'ring-offset-2 ring-pink-400 scale-110 shadow-lg' : 'ring-transparent hover:scale-105'} ${darkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
+              title={c.label} />
+          ))}
         </div>
+        <p className="text-xs opacity-50 mt-4">Текущий цвет: {currentColor.label}</p>
       </div>
 
       {/* My Achievements */}
@@ -1283,11 +1272,15 @@ function SettingsView({
 }) {
   const { companySettings, updateCompanySettings, departmentPlan, updateDepartmentPlan, prizes, addPrize, updatePrize, removePrize, challenges, addChallenge, removeChallenge, assignChallenge, planArchives, archiveCurrentMonthPlan } = useAppState();
 
-  const [localName, setLocalName] = useState(companySettings.name);
   const [localColor, setLocalColor] = useState(companySettings.mainColor);
   const [planTotal, setPlanTotal] = useState(departmentPlan.total);
   const [brandMonth, setBrandMonth] = useState(departmentPlan.brandOfMonth);
   const [promoMonth, setPromoMonth] = useState(departmentPlan.promoOfMonth);
+  
+  const handleSavePlan = () => {
+    updateDepartmentPlan({ total: planTotal, brandOfMonth: brandMonth, promoOfMonth: promoMonth });
+    showToast('✅ План отдела обновлён!');
+  };
 
   // New prize form
   const [showNewPrize, setShowNewPrize] = useState(false);
@@ -1320,14 +1313,10 @@ function SettingsView({
   const [grantAchievementId, setGrantAchievementId] = useState('');
 
   const handleSaveSettings = () => {
-    updateCompanySettings({ name: localName, mainColor: localColor });
-    showToast('✅ Настройки сохранены!');
+    updateCompanySettings({ mainColor: localColor });
+    showToast('✅ Цвет интерфейса сохранён!');
   };
 
-  const handleSavePlan = () => {
-    updateDepartmentPlan({ total: planTotal, brandOfMonth: brandMonth, promoOfMonth: promoMonth });
-    showToast('✅ План отдела обновлён!');
-  };
 
   const handleAddPrize = () => {
     if (!newPrizeName.trim()) return;
@@ -1463,20 +1452,14 @@ function SettingsView({
     <div className="space-y-6 pb-20 lg:pb-6">
       <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-gray-500">⚙️</span> Настройки</h2>
 
-      {/* Company Branding */}
+      {/* Global Interface Settings - Available for ALL users */}
       <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold">🏢 Брендирование</h3>
-          <button onClick={handleSaveSettings} className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
+          <h3 className="font-bold">🎨 Цвет интерфейса</h3>
+          <button onClick={() => { updateCompanySettings({ mainColor: localColor }); showToast('✅ Цвет интерфейса сохранён!'); }} className="px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg text-xs font-bold flex items-center gap-1"><Save size={14} /> Сохранить</button>
         </div>
+        <p className="text-sm opacity-60 mb-4">Выберите цвет для вашего личного интерфейса</p>
         <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium opacity-70">Название компании</label>
-            <div className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-500'} cursor-not-allowed`}>
-              {companySettings.name}
-            </div>
-            <p className="text-xs opacity-50 mt-1">⚠️ Название компании доступно только для просмотра</p>
-          </div>
           <div>
             <label className="text-sm font-medium opacity-70">Цвет интерфейса</label>
             <div className="flex gap-3 mt-2 flex-wrap">
