@@ -93,6 +93,7 @@ export interface DepartmentPlan {
   lastMonth: number;
   brandOfMonth: string;
   promoOfMonth: string;
+  importantAnnouncements: string;
   month: string; // текущий месяц (например, "Июнь 2024")
   year: number;
 }
@@ -187,6 +188,7 @@ function getDefaultDepartmentPlan(): DepartmentPlan {
     lastMonth: 82.3,
     brandOfMonth: 'Samsung',
     promoOfMonth: 'Летняя распродажа',
+    importantAnnouncements: '',
     month: `${monthNames[now.getMonth()]} ${now.getFullYear()}`,
     year: now.getFullYear(),
   };
