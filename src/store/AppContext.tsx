@@ -17,6 +17,7 @@ export interface User {
   fact: number;
   salesCoins: number;
   profileColor: string;
+  interfaceColor: string;
   achievements: UserAchievement[];
   monthlyHistory: MonthlyRecord[];
   createdAt: string;
@@ -284,6 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fact: 0,
       salesCoins: 0,
       profileColor: 'pink',
+      interfaceColor: 'pink',
       achievements: [],
       monthlyHistory: [],
       createdAt: new Date().toISOString(),
@@ -397,6 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fact: 0,
       salesCoins: 100,
       profileColor: 'pink',
+      interfaceColor: 'pink',
       achievements: [...DEFAULT_ACHIEVEMENTS],
       monthlyHistory: DEFAULT_MONTHLY_HISTORY.map(r => ({ ...r, fact: 0, percentage: 0 })),
       createdAt: new Date().toISOString(),
