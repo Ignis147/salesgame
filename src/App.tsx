@@ -300,6 +300,7 @@ function AppContent() {
                   <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} />
                   <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
                   <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+                  <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
                 </>
               )}
               {!admin && (
@@ -329,6 +330,7 @@ function AppContent() {
                         <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => { setCurrentView('analytics'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
+                        <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => { setCurrentView('profile'); setShowMobileMenu(false); }} />
                       </>
                     )}
                   </nav>
@@ -420,17 +422,26 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
         className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${userColor.gradient}`} text-white`}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
-          <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
-          <div className="flex flex-wrap gap-4 mt-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Значки</div>
-              <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Место</div>
-              <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/30 overflow-hidden flex-shrink-0">
+            {currentUser.avatar.startsWith('data:image') ? (
+              <img src={currentUser.avatar} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-3xl">{currentUser.avatar}</span>
+            )}
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
+            <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
+            <div className="flex flex-wrap gap-4 mt-3">
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                <div className="text-xs opacity-80">Значки</div>
+                <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                <div className="text-xs opacity-80">Место</div>
+                <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
+              </div>
             </div>
           </div>
         </div>
