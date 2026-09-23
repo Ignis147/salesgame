@@ -554,6 +554,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       };
     }));
+    
+    // Обновляем currentUser, если это текущий пользователь
+    setCurrentUser(prevUser => {
+      if (!prevUser || prevUser.id !== userId) return prevUser;
+      return prevUser; // Данные пользователя не меняются, только прогресс челленджа
+    });
   }, []);
 
   // Получение награды пользователем за выполнение челленджа
