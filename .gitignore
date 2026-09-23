@@ -1,3 +1,7 @@
 ```
-dist/
+# Dependencies
+node_modules/
+
+# Vite cache
+node_modules/.vite/
 ```
