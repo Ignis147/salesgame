@@ -406,11 +406,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setUsers(prev => [...prev, newUser]);
     
-    // Если никто не вошёл, новый пользователь становится текущим
-    // Если кто-то уже вошёл, текущий пользователь не меняется
-    if (!currentUser) {
-      setCurrentUser(newUser);
-    }
+    // После регистрации всегда делаем нового пользователя текущим
+    setCurrentUser(newUser);
 
     // Add welcome notification
     const welcomeNotif: Notification = {
@@ -425,7 +422,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [welcomeNotif, ...prev]);
 
     return { success: true };
-  }, [users, companySettings.name, currentUser]);
+  }, [users, companySettings.name]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
