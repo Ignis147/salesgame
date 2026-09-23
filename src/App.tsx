@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate, type Challenge } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
@@ -161,7 +161,7 @@ function AppContent() {
     prizes, challenges, notifications, departmentPlan, companySettings, achievementTemplates,
     updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
     addPrize, updatePrize, removePrize,
-    updateChallenge,
+    updateChallengeProgress, claimChallengeReward,
     markNotificationRead, markAllNotificationsRead,
     updateDepartmentPlan, updateCompanySettings, spendCoins,
     addAchievementTemplate, updateAchievementTemplate, removeAchievementTemplate, grantAchievementToUser,
@@ -352,7 +352,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallengeProgress={updateChallengeProgress} claimChallengeReward={claimChallengeReward} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
@@ -1393,18 +1393,18 @@ function SettingsView({
     }
     
     const isGlobal = selectedUserIds.length === 0;
+    const assignedTo: string[] = isGlobal ? users.filter(u => u.role === 'employee').map(u => u.id) : [...selectedUserIds];
     const challenge: Challenge = {
       id: Date.now().toString(),
-      userId: 'global', // Всегда создаем как глобальный, но с assignedTo для персональных
       title: newChallengeTitle,
       description: newChallengeDesc,
       emoji: newChallengeEmoji,
       xpReward: newChallengeXP,
-      progress: 0,
       total: newChallengeTotal,
       deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
       type: newChallengeType,
-      assignedTo: isGlobal ? undefined : selectedUserIds,
+      assignedTo,
+      progressByUser: {}, // персональный прогресс каждого участника
     };
     
     console.log('Созданный объект челленджа:', challenge);
