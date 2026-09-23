@@ -399,6 +399,9 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
   const personalPercent = currentUser.plan > 0 ? Math.round((currentUser.fact / currentUser.plan) * 100) : 0;
   const remaining = Math.max(0, currentUser.plan - currentUser.fact);
   const myRank = [...employees].sort((a, b) => (b.fact / Math.max(b.plan, 1)) - (a.fact / Math.max(a.plan, 1))).findIndex(e => e.id === currentUser.id) + 1;
+  
+  // Получаем цвет профиля пользователя для баннера
+  const userColor = COLOR_MAP[currentUser.profileColor] || COLOR_MAP.pink;
 
   // Handle fact update for employee
   const [editFact, setEditFact] = useState(false);
@@ -414,7 +417,7 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
     <div className="space-y-6 pb-20 lg:pb-6">
       {/* Welcome Banner - Individual for each user */}
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${color.gradient}`} text-white`}>
+        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${userColor.gradient}`} text-white`}>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
         <div className="relative z-10">
@@ -901,14 +904,28 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-purple-500">{currentUser.achievements.length}</div>
-          <div className="text-xs opacity-60 mt-1">Достижений</div>
-        </div>
-        <div className={`p-4 rounded-xl text-center ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-pink-100'}`}>
-          <div className="text-2xl font-bold text-amber-500">{currentUser.salesCoins}</div>
-          <div className="text-xs opacity-60 mt-1">EAST Coins</div>
+      {/* Customization */}
+      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+        <h3 className="font-bold text-lg mb-4">🎨 Персонализация</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onClick={() => setShowAvatarPicker(true)}
+            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
+            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-xl overflow-hidden">
+              {isImageAvatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" /> : currentUser.avatar}
+            </div>
+            <div className="text-left">
+              <div className="font-bold text-sm">Изменить аватар</div>
+              <div className="text-xs opacity-60">Эмодзи или своё фото</div>
+            </div>
+          </button>
+          <button onClick={() => setShowColorPicker(true)}
+            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
+            <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${currentColor.gradient}`} />
+            <div className="text-left">
+              <div className="font-bold text-sm">Цвет профиля</div>
+              <div className="text-xs opacity-60">{currentColor.label}</div>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -965,48 +982,6 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Customization */}
-      <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4">🎨 Персонализация</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button onClick={() => setShowAvatarPicker(true)}
-            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
-            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center text-xl overflow-hidden">
-              {isImageAvatar ? <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" /> : currentUser.avatar}
-            </div>
-            <div className="text-left">
-              <div className="font-bold text-sm">Изменить аватар</div>
-              <div className="text-xs opacity-60">Эмодзи или своё фото</div>
-            </div>
-          </button>
-          <button onClick={() => setShowColorPicker(true)}
-            className={`flex items-center gap-3 p-4 rounded-xl border transition-all hover:shadow-md ${darkMode ? 'border-gray-700 hover:border-pink-600 bg-gray-700/50' : 'border-gray-200 hover:border-pink-300 bg-gray-50'}`}>
-            <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${currentColor.gradient}`} />
-            <div className="text-left">
-              <div className="font-bold text-sm">Цвет профиля</div>
-              <div className="text-xs opacity-60">{currentColor.label}</div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* My Achievements */}
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4">🏅 Мои достижения</h3>
-        {currentUser.achievements.length === 0 ? (
-          <p className="text-sm opacity-60 text-center py-4">Пока нет достижений</p>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-            {currentUser.achievements.map(ach => (
-              <div key={ach.id} className={`aspect-square rounded-xl ${rarityColors[ach.rarity].bg} border ${rarityColors[ach.rarity].border} flex flex-col items-center justify-center p-2`}>
-                <span className="text-2xl">{ach.emoji}</span>
-                <span className="text-[9px] font-medium text-center mt-1">{ach.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
