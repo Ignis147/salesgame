@@ -346,7 +346,7 @@ function AppContent() {
               <motion.div key={currentView + currentUser.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
                 {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} currentUser={currentUser} />}
                 {currentView === 'achievements' && <AchievementsView darkMode={darkMode} isAdmin={admin} />}
-                {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name) => { spendCoins(amount); showToast(`🎉 Вы обменяли "${name}"!`); }} />}
+                {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name, prize) => { spendCoins(amount, prize); setShowConfetti(true); showToast(`🎉 Вы приобрели "${name}"!`); }} />}
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
@@ -564,6 +564,27 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
         )}
       </div>
 
+      {/* My Purchased Prizes */}
+      {currentUser.purchasedPrizes && currentUser.purchasedPrizes.length > 0 && (
+        <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <span className="text-amber-500">🎁</span>
+            Мои купленные награды
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {currentUser.purchasedPrizes.slice().reverse().map((prize) => (
+              <motion.div key={prize.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                className={`rounded-xl p-3 border ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'} text-center`}>
+                <div className="text-3xl mb-1">{prize.emoji}</div>
+                <div className="text-xs font-bold truncate">{prize.name}</div>
+                <div className="text-[10px] opacity-60 mt-0.5">{new Date(prize.purchasedAt).toLocaleDateString()}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* My Dynamics Chart */}
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -656,7 +677,7 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
 }
 
 // ============ SHOP VIEW ============
-function ShopView({ darkMode, prizes, salesCoins, onSpend }: { darkMode: boolean; prizes: any[]; salesCoins: number; onSpend: (amount: number, name: string) => void }) {
+function ShopView({ darkMode, prizes, salesCoins, onSpend }: { darkMode: boolean; prizes: any[]; salesCoins: number; onSpend: (amount: number, name: string, prize: any) => void }) {
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const categories = ['Все', ...new Set(prizes.map(p => p.category))];
   const filtered = selectedCategory === 'Все' ? prizes : prizes.filter(p => p.category === selectedCategory);
@@ -687,7 +708,7 @@ function ShopView({ darkMode, prizes, salesCoins, onSpend }: { darkMode: boolean
             <p className="text-sm opacity-60 mt-1">{prize.description}</p>
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-1"><span>🪙</span><span className="font-bold text-amber-600">{prize.cost}</span></div>
-              <button onClick={() => onSpend(prize.cost, prize.name)} disabled={salesCoins < prize.cost}
+              <button onClick={() => onSpend(prize.cost, prize.name, prize)} disabled={salesCoins < prize.cost}
                 className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${salesCoins >= prize.cost ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}>
                 {salesCoins >= prize.cost ? 'Обменять' : 'Мало монет'}
               </button>
