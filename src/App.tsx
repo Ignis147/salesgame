@@ -811,10 +811,6 @@ function AnalyticsView({ darkMode, employees, departmentPlan, showToast }: { dar
           </ResponsiveContainer>
         </div>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <button onClick={() => showToast('📊 Отчёт Excel скачан!')} className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">📊 Экспорт Excel</button>
-        <button onClick={() => showToast('📄 PDF сформирован!')} className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">📄 Экспорт PDF</button>
-      </div>
     </div>
   );
 }
