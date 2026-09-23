@@ -584,31 +584,6 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           </div>
         </div>
       )}
-
-      {/* My Dynamics Chart */}
-      <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-blue-500">📊</span>
-          Моя динамика
-        </h3>
-        <div className="h-48 sm:h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={currentUser.monthlyHistory}>
-              <defs>
-                <linearGradient id="colorPercent" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#f3f4f6'} />
-              <XAxis dataKey="month" stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
-              <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} fontSize={12} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-              <Area type="monotone" dataKey="percentage" stroke="#ec4899" strokeWidth={3} fill="url(#colorPercent)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
     </div>
   );
 }
