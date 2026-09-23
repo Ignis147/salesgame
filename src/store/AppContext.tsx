@@ -533,19 +533,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setChallenges(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  // Обновление прогресса пользователя в челлендже
+  // Обновление прогресса пользователя в челлендже (прогресс строго персональный)
   const updateChallengeProgress = useCallback((challengeId: string, userId: string, progressDelta: number) => {
+    if (!userId) return;
     setChallenges(prev => prev.map(c => {
       if (c.id !== challengeId) return c;
       
-      const userProgress = c.progressByUser[userId] || { progress: 0, completed: false, rewardClaimed: false };
-      const newProgress = Math.min(userProgress.progress + progressDelta, c.total);
+      const userProgress = c.progressByUser?.[userId] || { progress: 0, completed: false, rewardClaimed: false };
+      if (userProgress.completed) return c; // выполненный челлендж больше не меняется
+      const newProgress = Math.max(0, Math.min(userProgress.progress + progressDelta, c.total));
       const isCompleted = newProgress >= c.total;
       
       return {
         ...c,
         progressByUser: {
-          ...c.progressByUser,
+          ...(c.progressByUser ?? {}),
           [userId]: {
             progress: newProgress,
             completed: isCompleted,
@@ -556,32 +558,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  // Получение награды пользователем за выполнение челленджа
+  // Получение награды пользователем за выполнение челленджа (только его собственная награда)
   const claimChallengeReward = useCallback((challengeId: string, userId: string) => {
+    if (!userId) return;
+    // Сначала находим челлендж и проверяем, можно ли получить награду
+    const challenge = challenges.find(c => c.id === challengeId);
+    const userProgress = challenge?.progressByUser?.[userId];
+    if (!challenge || !userProgress || !userProgress.completed || userProgress.rewardClaimed) return;
+
+    // Начисляем награду только этому пользователю
+    setUsers(usersPrev => usersPrev.map(u => {
+      if (u.id !== userId) return u;
+      return { ...u, salesCoins: u.salesCoins + challenge.xpReward };
+    }));
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => prev ? { ...prev, salesCoins: prev.salesCoins + challenge.xpReward } : prev);
+    }
+    
     setChallenges(prev => prev.map(c => {
       if (c.id !== challengeId) return c;
-      
-      const userProgress = c.progressByUser[userId];
-      if (!userProgress || !userProgress.completed || userProgress.rewardClaimed) return c;
-      
-      // Начисляем награду пользователю
-      setUsers(usersPrev => usersPrev.map(u => {
-        if (u.id !== userId) return u;
-        return { ...u, salesCoins: u.salesCoins + c.xpReward };
-      }));
-      
       return {
         ...c,
         progressByUser: {
           ...c.progressByUser,
           [userId]: {
-            ...userProgress,
+            ...c.progressByUser[userId],
             rewardClaimed: true
           }
         }
       };
     }));
-  }, []);
+  }, [challenges, currentUser]);
 
   const assignChallenge = useCallback((challengeId: string, userIds: string[]) => {
     setChallenges(prev => prev.map(c => 
