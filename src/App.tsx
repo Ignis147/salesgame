@@ -352,7 +352,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallengeProgress={updateChallengeProgress} claimChallengeReward={claimChallengeReward} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
