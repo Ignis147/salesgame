@@ -352,7 +352,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} updateParticipantProgress={updateParticipantProgress} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
@@ -998,24 +998,21 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
 }
 
 // ============ CHALLENGES VIEW ============
-function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; showToast: (m: string) => void }) {
-  const { currentUser } = useAppState();
+function ChallengesView({ darkMode, challenges, updateChallenge, updateParticipantProgress, showToast }: { darkMode: boolean; challenges: any[]; updateChallenge: (id: string, data: any) => void; updateParticipantProgress: (challengeId: string, userId: string, newProgress: number) => void; showToast: (m: string) => void }) {
+  const { currentUser, users } = useAppState();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
   
-  // Фильтруем челленджи: показываем общие (global) и назначенные текущему пользователю
-  // Персональные челленджи видны только тому, кому назначены, и администраторам
+  // Фильтруем челленджи: показываем только те, где текущий пользователь является участником
+  // Администратор видит все челленджи
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'creator';
   const filtered = challenges.filter(c => {
     if (c.type !== activeTab) return false;
     
-    // Если челлендж глобальный - видим всем
-    if (!c.assignedTo || c.assignedTo.length === 0) {
-      return c.userId === 'global';
-    }
-    
-    // Если челлендж персональный - видим только назначенным пользователям и админам
+    // Администратор видит все челленджи
     if (isAdmin) return true;
-    return c.assignedTo.includes(currentUser?.id || '');
+    
+    // Участник видит только свои челленджи
+    return c.assignedTo && c.assignedTo.includes(currentUser?.id || '');
   });
 
   return (
@@ -1042,7 +1039,12 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
       ) : (
         <div className="space-y-4">
           {filtered.map((challenge, i) => {
-            // Проверяем, может ли пользователь редактировать этот челлендж
+            // Находим прогресс текущего пользователя в этом челлендже
+            const participant = challenge.participants?.find(p => p.userId === currentUser?.id);
+            const userProgress = participant?.progress || 0;
+            const isCompleted = participant?.completed || false;
+            
+            // Проверяем, может ли пользователь редактировать этот челлендж (только свой прогресс)
             const canEdit = isAdmin || (challenge.assignedTo && challenge.assignedTo.includes(currentUser?.id || ''));
             
             return (
@@ -1056,18 +1058,46 @@ function ChallengesView({ darkMode, challenges, updateChallenge, showToast }: { 
                     <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} 🪙</span>
                   </div>
                   <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
+                  
+                  {/* Прогресс пользователя */}
                   <div className="mt-3">
-                    <ProgressBar percentage={(challenge.progress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
+                    <ProgressBar percentage={(userProgress / challenge.total) * 100} color="from-yellow-400 to-orange-400" />
                     <div className="flex justify-between mt-1 text-xs opacity-60">
-                      <span>{challenge.progress}/{challenge.total}</span>
+                      <span>{userProgress}/{challenge.total} (Ваш прогресс)</span>
                       <span>⏰ {challenge.deadline}</span>
                     </div>
                   </div>
-                  {challenge.progress < challenge.total && canEdit && (
-                    <button onClick={() => { updateChallenge(challenge.id, { progress: challenge.progress + 1 }); if (challenge.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
+                  
+                  {/* Кнопка обновления прогресса только для своего челленджа */}
+                  {!isCompleted && canEdit && (
+                    <button onClick={() => { 
+                      const newProgress = userProgress + 1;
+                      updateParticipantProgress(challenge.id, currentUser!.id, newProgress);
+                      if (newProgress >= challenge.total) showToast('🎉 Челлендж выполнен! Награда начислена!');
+                    }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
-                  {challenge.progress >= challenge.total && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено!</span>}
+                  {isCompleted && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Выполнено! Награда получена!</span>}
+                  
+                  {/* Для админа - отображение всех участников */}
+                  {isAdmin && challenge.participants && challenge.participants.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <h4 className="text-sm font-bold mb-2">Прогресс участников:</h4>
+                      <div className="space-y-1">
+                        {challenge.participants.map(p => {
+                          const user = users.find(u => u.id === p.userId);
+                          return (
+                            <div key={p.userId} className="flex items-center justify-between text-xs">
+                              <span>{user?.name || 'Unknown'}</span>
+                              <span className={`${p.completed ? 'text-green-500 font-bold' : ''}`}>
+                                {p.progress}/{challenge.total} {p.completed && '✅'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1385,35 +1415,36 @@ function SettingsView({
       console.error('Ошибка: цель меньше или равна 0');
       return;
     }
+    if (selectedUserIds.length === 0) {
+      showToast('❌ Выберите хотя бы одного участника');
+      console.error('Ошибка: не выбраны участники');
+      return;
+    }
     
-    const isGlobal = selectedUserIds.length === 0;
+    // Создаём участников для каждого назначенного пользователя
+    const participants = selectedUserIds.map(userId => ({
+      userId,
+      progress: 0,
+      completed: false,
+      rewarded: false,
+    }));
+    
     const challenge: Challenge = {
       id: Date.now().toString(),
-      userId: 'global', // Всегда создаем как глобальный, но с assignedTo для персональных
       title: newChallengeTitle,
       description: newChallengeDesc,
       emoji: newChallengeEmoji,
       xpReward: newChallengeXP,
-      progress: 0,
       total: newChallengeTotal,
       deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
       type: newChallengeType,
-      assignedTo: isGlobal ? undefined : selectedUserIds,
+      assignedTo: selectedUserIds,
+      participants,
     };
     
     console.log('Созданный объект челленджа:', challenge);
     addChallenge(challenge);
     console.log('Челлендж добавлен через addChallenge');
-    
-    // Send notifications to assigned users
-    if (!isGlobal && selectedUserIds.length > 0) {
-      selectedUserIds.forEach(userId => {
-        const user = users.find(u => u.id === userId);
-        if (user) {
-          // Notification will be added via addNotification if available
-        }
-      });
-    }
     
     setShowNewChallenge(false);
     setNewChallengeTitle('');
@@ -1630,7 +1661,7 @@ function SettingsView({
                 className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
             </div>
             <div>
-              <label className="text-xs opacity-60">Назначить пользователям (оставьте пустым для общего)</label>
+              <label className="text-xs opacity-60">Назначить пользователям (обязательно выберите хотя бы одного)</label>
               <div className="mt-2 flex flex-wrap gap-2">
                 {users.filter(u => u.role === 'employee').map(user => (
                   <button
@@ -1642,6 +1673,9 @@ function SettingsView({
                   </button>
                 ))}
               </div>
+              {selectedUserIds.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">⚠️ Выберите хотя бы одного участника</p>
+              )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowNewChallenge(false)} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>Отмена</button>
