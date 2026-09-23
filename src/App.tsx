@@ -6,7 +6,7 @@ import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
   Target, TrendingUp, Crown, Sparkles, Star,
-  Medal, Award, Zap,
+  Medal, Award, Zap, DollarSign,
   Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield, Image as ImageIcon
 } from 'lucide-react';
 import {
@@ -1553,15 +1553,19 @@ function SettingsView({
               <div key={archive.id} className={`p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="font-medium text-sm">{archive.month} {archive.year}</div>
+                    <div className="font-medium text-sm">{archive.name || `${archive.month} ${archive.year}`}</div>
                     <div className="text-xs opacity-60">План: {(archive.totalPlan / 1000).toFixed(0)}K ₽ • Факт: {(archive.totalFact / 1000).toFixed(0)}K ₽ • {archive.percentage}%</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-xs opacity-40">{new Date(archive.archivedAt).toLocaleDateString()}</div>
                     <button onClick={() => {
+                      const newName = prompt('Введите название архива:', archive.name || `${archive.month} ${archive.year}`);
+                      if (newName !== null) updatePlanArchive(archive.id, { name: newName || undefined });
+                    }} className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500" title="Редактировать"><Edit3 size={14} /></button>
+                    <button onClick={() => {
                       const newTotal = prompt('Введите новый общий план:', String(archive.totalPlan));
                       if (newTotal !== null) updatePlanArchive(archive.id, { totalPlan: Number(newTotal) });
-                    }} className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-500" title="Редактировать"><Edit3 size={14} /></button>
+                    }} className="p-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 text-green-500" title="Изменить план"><DollarSign size={14} /></button>
                     <button onClick={() => {
                       if (confirm('Удалить этот архив?')) removePlanArchive(archive.id);
                     }} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500" title="Удалить"><Trash2 size={14} /></button>
