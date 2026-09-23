@@ -69,7 +69,12 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
       if (!result.success) setError(result.error || 'Ошибка входа');
     } else {
       const result = register(email, password, name);
-      if (!result.success) setError(result.error || 'Ошибка регистрации');
+      if (result.success) {
+        // После успешной регистрации сразу показываем главную страницу
+        // currentUser будет установлен в AppContext, и AuthScreen перерендерится
+      } else {
+        setError(result.error || 'Ошибка регистрации');
+      }
     }
   };
 
@@ -408,6 +413,26 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
       {/* Welcome Banner - Individual for each user */}
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${color.gradient}`} text-white`}>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
+          <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
+          <div className="flex flex-wrap gap-4 mt-4">
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <div className="text-xs opacity-80">Значки</div>
+              <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <div className="text-xs opacity-80">Место</div>
+              <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Important Announcements, Brand of Month, Promo of Month */}
       {(departmentPlan.brandOfMonth || departmentPlan.promoOfMonth || departmentPlan.importantAnnouncements) && (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
@@ -447,26 +472,6 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           )}
         </motion.div>
       )}
-
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 ${darkMode ? 'bg-gradient-to-r from-purple-900 to-pink-900' : `bg-gradient-to-r ${color.gradient}`} text-white`}>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
-          <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
-          <div className="flex flex-wrap gap-4 mt-4">
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Значки</div>
-              <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-              <div className="text-xs opacity-80">Место</div>
-              <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
 
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
