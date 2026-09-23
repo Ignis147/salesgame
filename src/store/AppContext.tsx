@@ -76,16 +76,15 @@ export interface Prize {
 
 export interface Challenge {
   id: string;
-  userId: string; // 'global' для общих, или ID пользователя для персональных
   title: string;
   description: string;
   emoji: string;
   xpReward: number;
-  progress: number;
   total: number;
   deadline: string;
   type: 'daily' | 'weekly' | 'seasonal';
-  assignedTo?: string[]; // ID пользователей, которым назначен челлендж (если не global)
+  assignedTo: string[]; // ID пользователей, которым назначен челлендж (обязательно)
+  progressByUser: Record<string, { progress: number; completed: boolean; rewardClaimed: boolean }>; // Прогресс каждого пользователя
 }
 
 export interface Notification {
@@ -255,6 +254,8 @@ interface AppState {
   addChallenge: (challenge: Challenge) => void;
   removeChallenge: (id: string) => void;
   assignChallenge: (challengeId: string, userIds: string[]) => void;
+  updateChallengeProgress: (challengeId: string, userId: string, progressDelta: number) => void;
+  claimChallengeReward: (challengeId: string, userId: string) => void;
 
   addNotification: (notif: Notification) => void;
   markNotificationRead: (id: string) => void;
@@ -532,6 +533,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setChallenges(prev => prev.filter(c => c.id !== id));
   }, []);
 
+  // Обновление прогресса пользователя в челлендже
+  const updateChallengeProgress = useCallback((challengeId: string, userId: string, progressDelta: number) => {
+    setChallenges(prev => prev.map(c => {
+      if (c.id !== challengeId) return c;
+      
+      const userProgress = c.progressByUser[userId] || { progress: 0, completed: false, rewardClaimed: false };
+      const newProgress = Math.min(userProgress.progress + progressDelta, c.total);
+      const isCompleted = newProgress >= c.total;
+      
+      return {
+        ...c,
+        progressByUser: {
+          ...c.progressByUser,
+          [userId]: {
+            progress: newProgress,
+            completed: isCompleted,
+            rewardClaimed: userProgress.rewardClaimed, // сохраняем статус получения награды
+          }
+        }
+      };
+    }));
+  }, []);
+
+  // Получение награды пользователем за выполнение челленджа
+  const claimChallengeReward = useCallback((challengeId: string, userId: string) => {
+    setChallenges(prev => prev.map(c => {
+      if (c.id !== challengeId) return c;
+      
+      const userProgress = c.progressByUser[userId];
+      if (!userProgress || !userProgress.completed || userProgress.rewardClaimed) return c;
+      
+      // Начисляем награду пользователю
+      setUsers(usersPrev => usersPrev.map(u => {
+        if (u.id !== userId) return u;
+        return { ...u, salesCoins: u.salesCoins + c.xpReward };
+      }));
+      
+      return {
+        ...c,
+        progressByUser: {
+          ...c.progressByUser,
+          [userId]: {
+            ...userProgress,
+            rewardClaimed: true
+          }
+        }
+      };
+    }));
+  }, []);
+
   const assignChallenge = useCallback((challengeId: string, userIds: string[]) => {
     setChallenges(prev => prev.map(c => 
       c.id === challengeId ? { ...c, assignedTo: userIds } : c
@@ -686,6 +737,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addChallenge,
       removeChallenge,
       assignChallenge,
+      updateChallengeProgress,
+      claimChallengeReward,
       addNotification,
       markNotificationRead,
       markAllNotificationsRead,
