@@ -161,7 +161,7 @@ function AppContent() {
     prizes, challenges, notifications, departmentPlan, companySettings, achievementTemplates,
     updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
     addPrize, updatePrize, removePrize,
-    updateChallenge, updateChallengeProgress, claimChallengeReward,
+    updateChallenge,
     markNotificationRead, markAllNotificationsRead,
     updateDepartmentPlan, updateCompanySettings, spendCoins,
     addAchievementTemplate, updateAchievementTemplate, removeAchievementTemplate, grantAchievementToUser,
