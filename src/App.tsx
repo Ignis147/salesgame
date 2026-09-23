@@ -1065,12 +1065,12 @@ function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimCh
                       <span>⏰ {challenge.deadline}</span>
                     </div>
                   </div>
-                  {!isCompleted && (
-                    <button onClick={() => { updateChallengeProgress(challenge.id, currentUser?.id || '', 1); if (userProgress.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
+                  {!isCompleted && currentUser?.id && (
+                    <button onClick={() => { updateChallengeProgress(challenge.id, currentUser.id!, 1); if (userProgress.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
-                  {canClaimReward && (
-                    <button onClick={() => { claimChallengeReward(challenge.id, currentUser?.id || ''); showToast(`🎉 Получено ${challenge.xpReward} EAST coin!`); }}
+                  {canClaimReward && currentUser?.id && (
+                    <button onClick={() => { claimChallengeReward(challenge.id, currentUser.id!); showToast(`🎉 Получено ${challenge.xpReward} EAST coin!`); }}
                       className="mt-2 ml-2 px-3 py-1 bg-gradient-to-r from-green-400 to-emerald-400 text-white rounded-lg text-xs font-bold">Получить награду</button>
                   )}
                   {isCompleted && userProgress.rewardClaimed && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Награда получена!</span>}
