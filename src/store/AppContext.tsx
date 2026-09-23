@@ -74,24 +74,18 @@ export interface Prize {
   category: string;
 }
 
-export interface ChallengeParticipant {
-  userId: string;
-  progress: number;
-  completed: boolean;
-  rewarded: boolean; // чтобы не выдать награду дважды
-}
-
 export interface Challenge {
   id: string;
+  userId: string; // 'global' для общих, или ID пользователя для персональных
   title: string;
   description: string;
   emoji: string;
   xpReward: number;
+  progress: number;
   total: number;
   deadline: string;
   type: 'daily' | 'weekly' | 'seasonal';
-  assignedTo: string[]; // ID пользователей, которым назначен челлендж (обязательно хотя бы один)
-  participants: ChallengeParticipant[]; // Прогресс каждого участника
+  assignedTo?: string[]; // ID пользователей, которым назначен челлендж (если не global)
 }
 
 export interface Notification {
@@ -261,7 +255,6 @@ interface AppState {
   addChallenge: (challenge: Challenge) => void;
   removeChallenge: (id: string) => void;
   assignChallenge: (challengeId: string, userIds: string[]) => void;
-  updateParticipantProgress: (challengeId: string, userId: string, newProgress: number) => void;
 
   addNotification: (notif: Notification) => void;
   markNotificationRead: (id: string) => void;
@@ -533,24 +526,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addChallenge = useCallback((challenge: Challenge) => {
     setChallenges(prev => [...prev, challenge]);
-    
-    // Отправляем уведомления назначенным пользователям
-    challenge.assignedTo.forEach(userId => {
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        const notif = {
-          id: generateId(),
-          userId,
-          title: 'Новый челлендж!',
-          message: `Вам назначен челлендж: ${challenge.title}`,
-          emoji: challenge.emoji,
-          time: 'Только что',
-          read: false,
-        };
-        setNotifications(prevNotifs => [notif, ...prevNotifs]);
-      }
-    });
-  }, [users]);
+  }, []);
 
   const removeChallenge = useCallback((id: string) => {
     setChallenges(prev => prev.filter(c => c.id !== id));
@@ -560,63 +536,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setChallenges(prev => prev.map(c => 
       c.id === challengeId ? { ...c, assignedTo: userIds } : c
     ));
-  }, []);
-
-  const updateChallenge = useCallback((id: string, data: Partial<Challenge>) => {
-    setChallenges(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      
-      const updatedChallenge = { ...c, ...data };
-      
-      // Проверяем, есть ли завершённые участники, которым ещё не выдана награда
-      if (updatedChallenge.participants) {
-        updatedChallenge.participants = updatedChallenge.participants.map(p => {
-          if (p.progress >= updatedChallenge.total && !p.completed) {
-            // Участник завершил челлендж - выдаём награду
-            const userIndex = users.findIndex(u => u.id === p.userId);
-            if (userIndex !== -1) {
-              setUsers(prevUsers => prevUsers.map(u => 
-                u.id === p.userId ? { ...u, salesCoins: u.salesCoins + updatedChallenge.xpReward } : u
-              ));
-              return { ...p, completed: true, rewarded: true };
-            }
-          }
-          return p;
-        });
-      }
-      
-      return updatedChallenge;
-    }));
-  }, [users]);
-
-  // Обновление прогресса конкретного участника
-  const updateParticipantProgress = useCallback((challengeId: string, userId: string, newProgress: number) => {
-    setChallenges(prev => prev.map(c => {
-      if (c.id !== challengeId) return c;
-      
-      const updatedParticipants = c.participants.map(p => {
-        if (p.userId !== userId) return p;
-        
-        const updatedProgress = newProgress;
-        const isCompleted = updatedProgress >= c.total;
-        
-        // Если челлендж завершён и награда ещё не выдана
-        if (isCompleted && !p.rewarded) {
-          // Выдаём награду пользователю
-          setUsers(prevUsers => {
-            const updated = prevUsers.map(u => 
-              u.id === userId ? { ...u, salesCoins: u.salesCoins + c.xpReward } : u
-            );
-            return updated;
-          });
-          return { ...p, progress: updatedProgress, completed: true, rewarded: true };
-        }
-        
-        return { ...p, progress: updatedProgress, completed: isCompleted };
-      });
-      
-      return { ...c, participants: updatedParticipants };
-    }));
   }, []);
 
   const archiveCurrentMonthPlan = useCallback(() => {
@@ -763,11 +682,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updatePrize: (id, data) => setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...data } : p)),
       removePrize: (id) => setPrizes(prev => prev.filter(p => p.id !== id)),
       updateChallenges: setChallenges,
-      updateChallenge,
+      updateChallenge: (id, data) => setChallenges(prev => prev.map(c => c.id === id ? { ...c, ...data } : c)),
       addChallenge,
       removeChallenge,
       assignChallenge,
-      updateParticipantProgress,
       addNotification,
       markNotificationRead,
       markAllNotificationsRead,
