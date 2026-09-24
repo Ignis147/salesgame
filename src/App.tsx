@@ -173,17 +173,15 @@ function AppContent() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAchievementPopup, setShowAchievementPopup] = useState<UserAchievement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  
-  // Admin: Manage achievements tab
-  const [manageAchievementsTab, setManageAchievementsTab] = useState<'list' | 'create'>('list');
-  const [newAchievementName, setNewAchievementName] = useState('');
-  const [newAchievementDesc, setNewAchievementDesc] = useState('');
-  const [newAchievementEmoji, setNewAchievementEmoji] = useState('🏆');
-  const [newAchievementRarity, setNewAchievementRarity] = useState<'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'>('common');
-  const [newAchievementCost, setNewAchievementCost] = useState(50);
-  const [newAchievementImage, setNewAchievementImage] = useState('');
 
   const showToast = useCallback((msg: string) => setToast(msg), []);
+
+  // Показ праздничного окна достижения (вызывается из SettingsView при выдаче)
+  const handleAchievementGranted = useCallback((ach: UserAchievement | null) => {
+    if (!ach) return;
+    setShowAchievementPopup(ach);
+    if (companySettings.confettiEnabled) setShowConfetti(true);
+  }, [companySettings.confettiEnabled]);
 
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
   const admin = isAdmin();
@@ -198,20 +196,24 @@ function AppContent() {
     }
   }, [showConfetti]);
 
+  const themeClass = darkMode ? 'dark' : '';
+
   if (!isAuthenticated || !currentUser) {
-    return <AuthScreen darkMode={darkMode} />;
+    return (
+      <div className={themeClass}>
+        <AuthScreen darkMode={darkMode} />
+      </div>
+    );
   }
 
   const userNotifications = notifications.filter(n => n.userId === currentUser.id);
   const unreadCount = userNotifications.filter(n => !n.read).length;
   const employees = users.filter(u => u.role !== 'creator');
 
-  const themeClass = darkMode ? 'dark' : '';
-
   return (
     <div className={`${themeClass} min-h-screen font-['Nunito',sans-serif]`}>
       <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : `bg-gradient-to-br ${color.light} text-gray-800`}`}>
-        {showConfetti && <ReactConfetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={200} colors={['#ff69b4', '#ffd700', '#87ceeb', '#98fb98', '#dda0dd']} />}
+        {showConfetti && companySettings.confettiEnabled && <ReactConfetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={200} colors={['#ff69b4', '#ffd700', '#87ceeb', '#98fb98', '#dda0dd']} />}
 
         {/* Achievement Popup */}
         <AnimatePresence>
@@ -222,7 +224,11 @@ function AppContent() {
                   ✨ ДОСТИЖЕНИЕ ✨
                 </div>
                 <div className="text-center mt-2">
-                  <div className="text-5xl mb-2 animate-bounce">{showAchievementPopup.emoji}</div>
+                  {showAchievementPopup.image ? (
+                    <img src={showAchievementPopup.image} alt={showAchievementPopup.name} className="w-20 h-20 mx-auto mb-2 rounded-xl object-cover" />
+                  ) : (
+                    <div className="text-5xl mb-2 animate-bounce">{showAchievementPopup.emoji}</div>
+                  )}
                   <h3 className="font-bold text-lg">{showAchievementPopup.name}</h3>
                   <p className={`text-sm ${rarityColors[showAchievementPopup.rarity].text}`}>{rarityColors[showAchievementPopup.rarity].label}</p>
                   <p className="text-sm opacity-70 mt-1">{showAchievementPopup.description}</p>
@@ -347,15 +353,15 @@ function AppContent() {
             <AnimatePresence mode="wait">
               <motion.div key={currentView + currentUser.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
                 {currentView === 'home' && <HomeView darkMode={darkMode} admin={admin} employees={employees} departmentPlan={departmentPlan} color={color} showToast={showToast} currentUser={currentUser} />}
-                {currentView === 'achievements' && <AchievementsView darkMode={darkMode} isAdmin={admin} />}
-                {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes} salesCoins={currentUser.salesCoins} onSpend={(amount, name, prize) => { spendCoins(amount, prize); setShowConfetti(true); showToast(`🎉 Вы приобрели "${name}"!`); }} />}
+                {currentView === 'achievements' && <AchievementsView darkMode={darkMode} />}
+                {currentView === 'shop' && <ShopView darkMode={darkMode} prizes={prizes.filter(p => p.available)} salesCoins={currentUser.salesCoins} onSpend={(amount, name, prize) => { spendCoins(amount, prize); if (companySettings.confettiEnabled) setShowConfetti(true); showToast(`🎉 Вы приобрели "${name}"!`); }} />}
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
                 {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallengeProgress={updateChallengeProgress} claimChallengeReward={claimChallengeReward} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
-                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
+                {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} onAchievementGranted={handleAchievementGranted} users={users} currentUser={currentUser} />}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -616,7 +622,7 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
   if (!currentUser) return null;
   
   // Получаем только достижения, созданные администратором
-  const allAchievements = achievementTemplates;
+  const allAchievements = achievementTemplates.filter(a => a.isActive);
   
   // Разделяем на полученные и недоступные
   const obtained = allAchievements.filter(a => 
@@ -643,7 +649,11 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
                 whileHover={{ scale: 1.03, y: -4 }}
                 className={`p-4 rounded-2xl border-2 ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].border} shadow-sm`}>
                 <div className="flex items-start justify-between">
-                  <span className="text-4xl">{ach.emoji}</span>
+                  {ach.image ? (
+                    <img src={ach.image} alt={ach.name} className="w-12 h-12 rounded-xl object-cover" />
+                  ) : (
+                    <span className="text-4xl">{ach.emoji}</span>
+                  )}
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-bold`}>{rarityColors[ach.rarity].label}</span>
                 </div>
                 <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
@@ -660,7 +670,11 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {locked.map((ach, i) => (
             <div key={ach.id} className={`p-4 rounded-2xl border-2 border-dashed ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-200 bg-gray-50'} opacity-60`}>
-              <span className="text-4xl grayscale">{ach.emoji}</span>
+              {ach.image ? (
+                <img src={ach.image} alt={ach.name} className="w-12 h-12 rounded-xl object-cover grayscale" />
+              ) : (
+                <span className="text-4xl grayscale">{ach.emoji}</span>
+              )}
               <h4 className="font-bold text-sm mt-2">{ach.name}</h4>
               <p className="text-xs opacity-60 mt-1">{ach.description}</p>
               <span className={`text-[10px] mt-2 inline-block px-2 py-0.5 rounded-full ${rarityColors[ach.rarity].bg} ${rarityColors[ach.rarity].text} font-medium`}>{rarityColors[ach.rarity].label}</span>
@@ -1360,6 +1374,7 @@ function SettingsView({
   updateAchievementTemplate, 
   removeAchievementTemplate, 
   grantAchievementToUser,
+  onAchievementGranted,
   users,
   currentUser
 }: { 
@@ -1369,7 +1384,8 @@ function SettingsView({
   addAchievementTemplate: (t: AchievementTemplate) => void;
   updateAchievementTemplate: (id: string, data: Partial<AchievementTemplate>) => void;
   removeAchievementTemplate: (id: string) => void;
-  grantAchievementToUser: (userId: string, achievementId: string) => void;
+  grantAchievementToUser: (userId: string, achievementId: string) => UserAchievement | null;
+  onAchievementGranted: (ach: UserAchievement | null) => void;
   users: User[];
   currentUser: User;
 }) {
@@ -1527,10 +1543,15 @@ function SettingsView({
 
   const handleGrantAchievement = () => {
     if (!grantUserId || !grantAchievementId) return;
-    grantAchievementToUser(grantUserId, grantAchievementId);
+    const granted = grantAchievementToUser(grantUserId, grantAchievementId);
     setGrantUserId('');
     setGrantAchievementId('');
-    showToast('✅ Достижение выдано сотруднику!');
+    if (granted) {
+      onAchievementGranted(granted);
+      showToast('✅ Достижение выдано сотруднику!');
+    } else {
+      showToast('ℹ️ У сотрудника уже есть это достижение.');
+    }
   };
 
   const colors = [
