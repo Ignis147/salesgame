@@ -611,7 +611,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setAuthLoading(false);
       }
     })();
-    const { data: sub } = supabase.auth.onAuthStateEvent(async ({ event, session }) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
         return;
@@ -1099,6 +1099,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         setNotifications(prevNotifs => [notif, ...prevNotifs]);
 
+        // Сохраняем выданное достижение в профиль Supabase (для текущего
+        // пользователя — сразу; чужой профиль можно записать только от его имени)
+        schedulePersist(updatedUser);
+
         // Сохраняем выданное достижение, чтобы UI мог показать праздничное окно
         grantedAchievement = newAchievement;
 
@@ -1108,13 +1112,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
 
     return grantedAchievement;
-  }, [achievementTemplates, currentUser]);
+  }, [achievementTemplates, currentUser, schedulePersist]);
 
   return (
     <AppContext.Provider value={{
       currentUser,
       users,
       isAuthenticated: !!currentUser,
+      authLoading,
       login,
       register,
       logout,
@@ -1166,5 +1171,3 @@ export function useAppState() {
   if (!ctx) throw new Error('useAppState must be used within AppProvider');
   return ctx;
 }
-
-export { CREATOR_EMAIL, CREATOR_PASSWORD };
