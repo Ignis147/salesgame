@@ -1043,12 +1043,12 @@ function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimCh
       ) : (
         <div className="space-y-4">
           {filtered.map((challenge, i) => {
-            // Получаем прогресс текущего пользователя
+            // Получаем прогресс текущего пользователя (у администраторов личный прогресс не отображается)
             const userProgress = challenge.progressByUser?.[currentUser?.id || ''] || { progress: 0, completed: false, rewardClaimed: false };
             const percentage = (userProgress.progress / challenge.total) * 100;
             const isCompleted = userProgress.completed;
             const canClaimReward = isCompleted && !userProgress.rewardClaimed;
-            
+
             return (
             <motion.div key={challenge.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}
               className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
@@ -1060,13 +1060,19 @@ function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimCh
                     <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-full">+{challenge.xpReward} 🪙</span>
                   </div>
                   <p className="text-sm opacity-60 mt-1">{challenge.description}</p>
-                  <div className="mt-3">
-                    <ProgressBar percentage={percentage} color="from-yellow-400 to-orange-400" />
-                    <div className="flex justify-between mt-1 text-xs opacity-60">
-                      <span>{userProgress.progress}/{challenge.total}</span>
-                      <span>⏰ {challenge.deadline}</span>
+                  {/* Личный прогресс — только для сотрудников (у администраторов скрывается) */}
+                  {!isAdmin && (
+                    <div className="mt-3">
+                      <ProgressBar percentage={percentage} color="from-yellow-400 to-orange-400" />
+                      <div className="flex justify-between mt-1 text-xs opacity-60">
+                        <span>{userProgress.progress}/{challenge.total}</span>
+                        <span>⏰ {challenge.deadline}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {isAdmin && (
+                    <div className="mt-2 text-xs opacity-60">⏰ Дедлайн: {challenge.deadline}</div>
+                  )}
                   {/* Кому назначен челлендж */}
                   {(() => {
                     const assigned = (challenge.assignedTo || []).map((id: string) => users.find(u => u.id === id)).filter(Boolean) as any[];
@@ -1114,15 +1120,15 @@ function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimCh
                       </div>
                     );
                   })()}
-                  {!isCompleted && (
+                  {!isAdmin && !isCompleted && (
                     <button onClick={() => { updateChallengeProgress(challenge.id, currentUser?.id || '', 1); if (userProgress.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
                   )}
-                  {canClaimReward && (
+                  {!isAdmin && canClaimReward && (
                     <button onClick={() => { claimChallengeReward(challenge.id, currentUser?.id || ''); showToast(`🎉 Получено ${challenge.xpReward} EAST coin!`); }}
                       className="mt-2 ml-2 px-3 py-1 bg-gradient-to-r from-green-400 to-emerald-400 text-white rounded-lg text-xs font-bold">Получить награду</button>
                   )}
-                  {isCompleted && userProgress.rewardClaimed && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Награда получена!</span>}
+                  {!isAdmin && isCompleted && userProgress.rewardClaimed && <span className="mt-2 inline-block px-3 py-1 bg-green-100 text-green-600 rounded-lg text-xs font-bold">✅ Награда получена!</span>}
                 </div>
               </div>
             </motion.div>
