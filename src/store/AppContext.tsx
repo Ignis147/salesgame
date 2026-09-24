@@ -268,14 +268,14 @@ interface AppState {
   updatePlanArchive: (id: string, data: Partial<MonthlyPlanArchive>) => void;
   removePlanArchive: (id: string) => void;
 
-  spendCoins: (amount: number) => void;
+  spendCoins: (amount: number, prize?: Prize) => void;
 
   // Achievements management (admin only)
   achievementTemplates: AchievementTemplate[];
   addAchievementTemplate: (template: AchievementTemplate) => void;
   updateAchievementTemplate: (id: string, data: Partial<AchievementTemplate>) => void;
   removeAchievementTemplate: (id: string) => void;
-  grantAchievementToUser: (userId: string, achievementId: string) => void;
+  grantAchievementToUser: (userId: string, achievementId: string) => UserAchievement | null;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -689,9 +689,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlanArchives(prev => prev.filter(archive => archive.id !== id));
   }, []);
 
-  const grantAchievementToUser = useCallback((userId: string, achievementId: string) => {
+  const grantAchievementToUser = useCallback((userId: string, achievementId: string): UserAchievement | null => {
     const template = achievementTemplates.find(a => a.id === achievementId);
-    if (!template) return;
+    if (!template) return null;
+
+    let grantedAchievement: UserAchievement | null = null;
 
     // Find user and add achievement
     setUsers(prev => prev.map(u => {
@@ -735,10 +737,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         setNotifications(prevNotifs => [notif, ...prevNotifs]);
 
+        // Сохраняем выданное достижение, чтобы UI мог показать праздничное окно
+        grantedAchievement = newAchievement;
+
         return updatedUser;
       }
       return u;
     }));
+
+    return grantedAchievement;
   }, [achievementTemplates, currentUser]);
 
   return (
