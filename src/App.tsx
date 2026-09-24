@@ -52,30 +52,50 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 }
 
 // ============ AUTH SCREEN ============
+function AuthSpinner() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      <div className="w-12 h-12 rounded-full border-4 border-pink-200 border-t-pink-500 animate-spin" />
+      <p className="text-sm opacity-60">Проверяем сессию…</p>
+    </div>
+  );
+}
+
 function AuthScreen({ darkMode }: { darkMode: boolean }) {
-  const { login, register, companySettings } = useAppState();
+  const { login, register, companySettings, authLoading } = useAppState();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // блокируем повторные отправки, пока запрос в Supabase
     setError('');
-    if (isLogin) {
-      const result = login(email, password);
-      if (!result.success) setError(result.error || 'Ошибка входа');
-    } else {
-      const result = register(email, password, name);
-      if (result.success) {
-        // После успешной регистрации сразу показываем главную страницу
-        // currentUser будет установлен в AppContext, и AuthScreen перерендерится
+    setInfo('');
+    setSubmitting(true);
+    try {
+      if (isLogin) {
+        const result = await login(email, password);
+        if (!result.success) setError(result.error || 'Ошибка входа');
+        // При успехе currentUser установится в AppContext и AuthScreen перерендерится
       } else {
-        setError(result.error || 'Ошибка регистрации');
+        const result = await register(email, password, name);
+        if (result.success) {
+          // После успешной регистрации сразу показываем главную страницу
+        } else {
+          setError(result.error || 'Ошибка регистрации');
+        }
       }
+    } catch {
+      setError('Не удалось связаться с сервером авторизации. Проверьте подключение к интернету.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -133,19 +153,31 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
           {error && (
             <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-xl">{error}</div>
           )}
+          {info && (
+            <div className="text-blue-600 text-sm bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl">{info}</div>
+          )}
 
           <button
             type="submit"
-            className={`w-full py-3 bg-gradient-to-r ${color.gradient} text-white rounded-xl font-bold hover:shadow-lg transition-all`}
+            disabled={submitting}
+            className={`w-full py-3 bg-gradient-to-r ${color.gradient} text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >
-            {isLogin ? 'Войти' : 'Зарегистрироваться'}
+            {submitting ? (
+              <>
+                <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                {isLogin ? 'Входим…' : 'Регистрируем…'}
+              </>
+            ) : (
+              isLogin ? 'Войти' : 'Зарегистрироваться'
+            )}
           </button>
         </form>
 
         <div className="mt-4 text-center">
           <button
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
-            className="text-sm text-pink-500 font-medium hover:underline"
+            onClick={() => { setIsLogin(!isLogin); setError(''); setInfo(''); }}
+            disabled={submitting}
+            className="text-sm text-pink-500 font-medium hover:underline disabled:opacity-50"
           >
             {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
           </button>
@@ -158,7 +190,7 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
 // ============ MAIN APP CONTENT ============
 function AppContent() {
   const {
-    currentUser, users, isAuthenticated, isAdmin, logout,
+    currentUser, users, isAuthenticated, isAdmin, logout, authLoading,
     prizes, challenges, notifications, departmentPlan, companySettings, achievementTemplates,
     updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
     addPrize, updatePrize, removePrize,
@@ -198,6 +230,12 @@ function AppContent() {
   }, [showConfetti]);
 
   const themeClass = darkMode ? 'dark' : '';
+
+  // Пока Supabase восстанавливает сохранённую сессию — показываем спиннер
+  // вместо формы входа, чтобы у уже вошедших пользователей не мигал экран логина.
+  if (authLoading) {
+    return <AuthSpinner />;
+  }
 
   if (!isAuthenticated || !currentUser) {
     return (
