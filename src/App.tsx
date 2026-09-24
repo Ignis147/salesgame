@@ -208,7 +208,8 @@ function AppContent() {
 
   const userNotifications = notifications.filter(n => n.userId === currentUser.id);
   const unreadCount = userNotifications.filter(n => !n.read).length;
-  const employees = users.filter(u => u.role !== 'creator');
+  // В рейтинг и аналитику попадают только пользователи без роли "админ"
+  const employees = users.filter(u => u.role !== 'creator' && u.role !== 'admin');
 
   return (
     <div className={`${themeClass} min-h-screen font-['Nunito',sans-serif]`}>
