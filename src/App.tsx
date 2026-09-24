@@ -7,7 +7,8 @@ import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, SlidersHorizontal, Moon, Sun,
   Target, TrendingUp, Crown, Sparkles, Star,
   Medal, Award, Zap, DollarSign,
-  Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield, Image as ImageIcon
+  Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield, Image as ImageIcon,
+  UserPlus, ChevronDown
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
@@ -617,9 +618,150 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
   );
 }
 
+// ============ WALL OF FAME (ДОСКА ПОЧЕТА) ============
+const RARITY_ORDER: Record<string, number> = { legendary: 5, epic: 4, rare: 3, uncommon: 2, common: 1 };
+
+function WallOfFame({ darkMode, selectedId, onSelect }: { darkMode: boolean; selectedId: string; onSelect: (id: string) => void }) {
+  const { users, currentUser } = useAppState();
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Кандидаты — участники с достижениями или купленными призами
+  const candidates = users
+    .filter(u => u.achievements.length > 0 || (u.purchasedPrizes?.length ?? 0) > 0)
+    .sort((a, b) => (b.achievements.length + (b.purchasedPrizes?.length ?? 0)) - (a.achievements.length + (a.purchasedPrizes?.length ?? 0)));
+
+  // По умолчанию показываем самого результативного участника (или текущего пользователя)
+  const hero = users.find(u => u.id === selectedId) || candidates[0] || currentUser;
+  if (!hero) return null;
+
+  const avatar = (src: string, size = 'w-full h-full') =>
+    src && src.startsWith('data:image')
+      ? <img src={src} alt="" className={`${size} object-cover rounded-full`} />
+      : <span className={`${size} flex items-center justify-center text-4xl`}>{src || '👤'}</span>;
+
+  const achievements = [...hero.achievements].sort((a, b) => (RARITY_ORDER[b.rarity] || 0) - (RARITY_ORDER[a.rarity] || 0));
+  const purchased = [...(hero.purchasedPrizes || [])].reverse();
+
+  return (
+    <div className={`relative overflow-hidden rounded-3xl border-2 ${darkMode ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800 border-amber-500/40' : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 border-amber-300'} shadow-xl`}>
+      {/* Декоративные блики */}
+      <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-amber-300/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 -left-16 w-56 h-56 rounded-full bg-yellow-300/20 blur-3xl" />
+
+      <div className="relative p-5 sm:p-7">
+        {/* Заголовок */}
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-extrabold flex items-center gap-2">
+              <Crown size={26} className="text-amber-500" />
+              <span className="bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 bg-clip-text text-transparent">Доска почета</span>
+            </h2>
+            <p className="text-xs opacity-60 mt-1">Видна всем участникам · заслуги и награды героя страницы почёта</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowPicker(p => !p)}
+                className={`text-xs font-semibold px-3 py-2 rounded-full border flex items-center gap-1 transition-colors ${darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' : 'bg-white/70 border-amber-200 hover:bg-white'}`}>
+                <Users size={14} className="text-amber-500" /> Выбрать героя <ChevronDown size={12} />
+              </button>
+          </div>
+        </div>
+
+        {/* Выбор участника */}
+        {showPicker && (
+          <div className={`mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 rounded-2xl p-3 border ${darkMode ? 'bg-gray-800/80 border-gray-700' : 'bg-white/70 border-amber-200'}`}>
+            {candidates.length === 0 && <p className="text-xs opacity-60 col-span-full text-center py-2">Пока нет участников с достижениями или призами</p>}
+            {candidates.map(u => (
+              <button key={u.id} onClick={() => { onSelect(u.id); setShowPicker(false); }}
+                className={`flex items-center gap-2 p-2 rounded-xl border text-left transition-all hover:scale-[1.02] ${u.id === hero.id ? (darkMode ? 'bg-amber-900/30 border-amber-500/50' : 'bg-amber-100 border-amber-400') : (darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200')}`}>
+                <span className="w-8 h-8 rounded-full overflow-hidden shrink-0">{avatar(u.avatar)}</span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-bold truncate">{u.name}</span>
+                  <span className="block text-[10px] opacity-60">🏅 {u.achievements.length} · 🎁 {u.purchasedPrizes?.length ?? 0}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Карточка героя */}
+        <div className="mt-5 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative shrink-0">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-300 to-orange-400 blur-md opacity-60 animate-pulse" />
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full border-4 border-amber-400 bg-white shadow-lg overflow-hidden">
+              {avatar(hero.avatar)}
+            </div>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-xl">👑</div>
+          </motion.div>
+          <div className="text-center sm:text-left">
+            <div className="text-xl sm:text-2xl font-extrabold">{hero.name}</div>
+            <div className="text-sm opacity-70">{hero.department || 'Без отдела'}</div>
+            <div className="mt-2 flex flex-wrap justify-center sm:justify-start gap-2">
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${darkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'} border ${darkMode ? 'border-amber-700/50' : 'border-amber-300'}`}>🏅 Достижений: {hero.achievements.length}</span>
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${darkMode ? 'bg-pink-900/40 text-pink-300' : 'bg-pink-100 text-pink-700'} border ${darkMode ? 'border-pink-700/50' : 'border-pink-300'}`}>🎁 Призов: {hero.purchasedPrizes?.length ?? 0}</span>
+              <span className={`text-xs font-bold px-3 py-1 rounded-full ${darkMode ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-100 text-blue-700'} border ${darkMode ? 'border-blue-700/50' : 'border-blue-300'}`}>💰 {Math.round(hero.salesCoins)} EAST Coins</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Достижения, выданные администратором */}
+        <div className="mt-6">
+          <h3 className="font-bold text-sm mb-2 flex items-center gap-2"><Award size={16} className="text-amber-500" /> Достижения, выданные администратором ({achievements.length})</h3>
+          {achievements.length === 0 ? (
+            <p className="text-xs opacity-60 italic">Пока нет выданных достижений.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {achievements.map((ach, i) => (
+                <motion.div key={ach.id + '-' + i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                  className={`flex items-center gap-3 p-3 rounded-xl border ${rarityColors[ach.rarity]?.bg || (darkMode ? 'bg-gray-800' : 'bg-white')} ${rarityColors[ach.rarity]?.border || ''} ${darkMode ? '' : 'bg-white/80'} shadow-sm`}>
+                  {ach.image ? (
+                    <img src={ach.image} alt={ach.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <span className="text-2xl shrink-0">{ach.emoji}</span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate">{ach.name}</div>
+                    <div className="text-[10px] opacity-60 truncate">{ach.description}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${rarityColors[ach.rarity]?.bg} ${rarityColors[ach.rarity]?.text}`}>{rarityColors[ach.rarity]?.label || ach.rarity}</span>
+                      <span className="text-[10px] opacity-50">📅 {ach.date}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Призы, купленные в магазине наград */}
+        <div className="mt-5">
+          <h3 className="font-bold text-sm mb-2 flex items-center gap-2"><Gift size={16} className="text-pink-500" /> Призы из магазина наград ({purchased.length})</h3>
+          {purchased.length === 0 ? (
+            <p className="text-xs opacity-60 italic">Пока нет купленных призов.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {purchased.map((prize, i) => (
+                <motion.div key={prize.id + '-' + i} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${darkMode ? 'bg-gray-800/80 border-gray-700' : 'bg-white/80 border-amber-200'} shadow-sm`}>
+                  <span className="text-xl">{prize.emoji}</span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold truncate max-w-[160px]">{prize.name}</span>
+                    <span className="block text-[10px] opacity-60">💰 {prize.cost} · 📅 {new Date(prize.purchasedAt).toLocaleDateString()}</span>
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============ ACHIEVEMENTS VIEW ============
 function AchievementsView({ darkMode }: { darkMode: boolean }) {
   const { currentUser, achievementTemplates } = useAppState();
+  const [fameSelectedId, setFameSelectedId] = useState<string>('');
   if (!currentUser) return null;
   
   // Получаем только достижения, созданные администратором
@@ -635,6 +777,9 @@ function AchievementsView({ darkMode }: { darkMode: boolean }) {
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
+      {/* Доска почета — видна всем участникам */}
+      <WallOfFame darkMode={darkMode} selectedId={fameSelectedId} onSelect={setFameSelectedId} />
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-amber-500">🏆</span> Мои достижения</h2>
         <span className={`text-sm font-medium px-3 py-1 rounded-full ${darkMode ? 'bg-gray-800' : 'bg-pink-100'}`}>{currentUser.achievements.length} получено</span>
