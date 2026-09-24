@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
 import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate, type Challenge } from './store/AppContext';
@@ -1375,36 +1375,95 @@ const EMOJI_SETS: { label: string; emojis: string[] }[] = [
   { label: '🐾 Животные', emojis: ['🦁', '🐯', '🦊', '🐺', '🦅', '🐬', '🦄', '🐝', '🐱', '🐶', '🐼', '🦉', '🐢', '🦋', '🌸', '🌻'] },
 ];
 
-function EmojiPicker({ value, onChange, darkMode, ringColor = 'ring-pink-400' }: {
+function EmojiPickerField({ value, onChange, darkMode, ringColor = 'focus:ring-pink-300' }: {
   value: string;
   onChange: (emoji: string) => void;
   darkMode: boolean;
   ringColor?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
   return (
-    <div className="mt-2 space-y-2">
-      {EMOJI_SETS.map((set) => (
-        <div key={set.label}>
-          <div className="text-[10px] opacity-50 mb-1">{set.label}</div>
-          <div className="grid grid-cols-8 gap-1">
-            {set.emojis.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => onChange(emoji)}
-                title={emoji}
-                className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110 ${
-                  value === emoji
-                    ? `bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 ring-2 ${ringColor}`
-                    : darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white hover:bg-gray-100 border border-gray-200'
-                }`}
-              >
-                {emoji}
-              </button>
+    <div ref={ref} className="relative mt-1">
+      {/* Прозрачная нативная вставка эмодзи — позволяет выбрать эмодзи системным пикером без выпадающего списка */}
+      <input
+        aria-hidden="true"
+        tabIndex={-1}
+        value=""
+        onChange={e => {
+          const v = e.target.value;
+          if (v) { onChange(v); setOpen(false); }
+        }}
+        className="absolute top-0 left-0 w-full h-full opacity-0 pointer-events-none"
+      />
+      <div className="flex items-stretch gap-1">
+        <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder="🏆"
+          className={`flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 ${ringColor}`} />
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          title="Выбрать эмодзи из списка"
+          aria-expanded={open}
+          className={`shrink-0 px-2 rounded-lg border text-base transition-colors ${
+            open
+              ? `bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 border-transparent ring-2 ${ringColor.replace('focus:ring-', 'ring-')}`
+              : darkMode ? 'bg-gray-600 border-gray-500 hover:bg-gray-500' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+          }`}
+        >
+          😊▾
+        </button>
+      </div>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`absolute z-30 mt-1 w-72 max-w-[calc(100vw-3rem)] p-3 rounded-xl shadow-xl border max-h-72 overflow-y-auto ${
+            darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-200 text-gray-900'
+          }`}
+        >
+          <div className="space-y-2">
+            {EMOJI_SETS.map((set) => (
+              <div key={set.label}>
+                <div className="text-[10px] opacity-50 mb-1">{set.label}</div>
+                <div className="grid grid-cols-8 gap-1">
+                  {set.emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => { onChange(emoji); setOpen(false); }}
+                      title={emoji}
+                      className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110 ${
+                        value === emoji
+                          ? 'bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 ring-2 ' + ringColor.replace('focus:ring-', 'ring-')
+                          : darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </div>
-      ))}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -1738,9 +1797,7 @@ function SettingsView({
               </div>
               <div>
                 <label className="text-xs opacity-60">Эмодзи</label>
-                <input type="text" value={newChallengeEmoji} onChange={e => setNewChallengeEmoji(e.target.value)}
-                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
-                <EmojiPicker value={newChallengeEmoji} onChange={setNewChallengeEmoji} darkMode={darkMode} ringColor="ring-yellow-400" />
+                <EmojiPickerField value={newChallengeEmoji} onChange={setNewChallengeEmoji} darkMode={darkMode} ringColor="focus:ring-yellow-300" />
               </div>
               <div>
                 <label className="text-xs opacity-60">Награда (EAST Coins)</label>
@@ -1846,9 +1903,7 @@ function SettingsView({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs opacity-60">Эмодзи</label>
-                <input type="text" value={newPrizeEmoji} onChange={e => setNewPrizeEmoji(e.target.value)}
-                  className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
-                <EmojiPicker value={newPrizeEmoji} onChange={setNewPrizeEmoji} darkMode={darkMode} />
+                <EmojiPickerField value={newPrizeEmoji} onChange={setNewPrizeEmoji} darkMode={darkMode} />
               </div>
               <div>
                 <label className="text-xs opacity-60">Название</label>
@@ -1953,9 +2008,7 @@ function SettingsView({
               </div>
               <div>
                 <label className="text-sm font-medium opacity-70">Эмодзи</label>
-                <input type="text" value={newAchievementEmoji} onChange={e => setNewAchievementEmoji(e.target.value)} placeholder="🏆"
-                  className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
-                <EmojiPicker value={newAchievementEmoji} onChange={setNewAchievementEmoji} darkMode={darkMode} />
+                <EmojiPickerField value={newAchievementEmoji} onChange={setNewAchievementEmoji} darkMode={darkMode} />
               </div>
               <div>
                 <label className="text-sm font-medium opacity-70">Стоимость (EAST Coins)</label>
