@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactConfetti from 'react-confetti';
-import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate } from './store/AppContext';
+import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate, type Challenge } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
   Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
@@ -161,7 +161,7 @@ function AppContent() {
     prizes, challenges, notifications, departmentPlan, companySettings, achievementTemplates,
     updateCurrentUser, updateUser, removeUser, promoteToAdmin, demoteFromAdmin,
     addPrize, updatePrize, removePrize,
-    updateChallenge,
+    updateChallengeProgress, claimChallengeReward,
     markNotificationRead, markAllNotificationsRead,
     updateDepartmentPlan, updateCompanySettings, spendCoins,
     addAchievementTemplate, updateAchievementTemplate, removeAchievementTemplate, grantAchievementToUser,
@@ -352,7 +352,7 @@ function AppContent() {
                 {currentView === 'leaderboard' && <LeaderboardView darkMode={darkMode} employees={employees} currentUserId={currentUser.id} />}
                 {currentView === 'analytics' && admin && <AnalyticsView darkMode={darkMode} employees={employees} departmentPlan={departmentPlan} showToast={showToast} />}
                 {currentView === 'profile' && <ProfileView darkMode={darkMode} showToast={showToast} />}
-                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallenge={updateChallenge} showToast={showToast} />}
+                {currentView === 'challenges' && <ChallengesView darkMode={darkMode} challenges={challenges} updateChallengeProgress={updateChallengeProgress} claimChallengeReward={claimChallengeReward} showToast={showToast} />}
                 {currentView === 'notifications' && <NotificationsView darkMode={darkMode} notifications={userNotifications} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} />}
                 {currentView === 'team' && admin && <TeamView darkMode={darkMode} users={users} currentUser={currentUser} updateUser={updateUser} removeUser={removeUser} promoteToAdmin={promoteToAdmin} demoteFromAdmin={demoteFromAdmin} showToast={showToast} />}
                 {currentView === 'settings' && admin && <SettingsView darkMode={darkMode} showToast={showToast} achievementTemplates={achievementTemplates} addAchievementTemplate={addAchievementTemplate} updateAchievementTemplate={updateAchievementTemplate} removeAchievementTemplate={removeAchievementTemplate} grantAchievementToUser={grantAchievementToUser} users={users} currentUser={currentUser} />}
@@ -999,21 +999,23 @@ function ProfileView({ darkMode, showToast }: { darkMode: boolean; showToast: (m
 
 // ============ CHALLENGES VIEW ============
 function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimChallengeReward, showToast }: { darkMode: boolean; challenges: any[]; updateChallengeProgress: (id: string, userId: string, delta: number) => void; claimChallengeReward: (id: string, userId: string) => void; showToast: (m: string) => void }) {
-  const { currentUser } = useAppState();
+  const { currentUser, users } = useAppState();
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'seasonal'>('daily');
+  const [expandedAdmins, setExpandedAdmins] = useState<Record<string, boolean>>({});
   
-  // Фильтруем челленджи: показываем только назначенные текущему пользователю и администраторам
+  // Фильтруем челленджи: администраторы видят все челленджи, сотрудники — только назначенные им
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'creator';
   const filtered = challenges.filter(c => {
     if (c.type !== activeTab) return false;
-    
-    // Если челлендж не назначен никому - не показываем (теперь все челленджи должны быть назначены)
+
+    // Администраторы видят все челленджи, включая ещё не назначенные
+    if (isAdmin) return true;
+
+    // Если челлендж не назначен никому - сотрудник его не видит
     if (!c.assignedTo || c.assignedTo.length === 0) {
       return false;
     }
-    
-    // Если челлендж персональный - видим только назначенным пользователям и админам
-    if (isAdmin) return true;
+
     return c.assignedTo.includes(currentUser?.id || '');
   });
 
@@ -1065,6 +1067,53 @@ function ChallengesView({ darkMode, challenges, updateChallengeProgress, claimCh
                       <span>⏰ {challenge.deadline}</span>
                     </div>
                   </div>
+                  {/* Кому назначен челлендж */}
+                  {(() => {
+                    const assigned = (challenge.assignedTo || []).map((id: string) => users.find(u => u.id === id)).filter(Boolean) as any[];
+                    if (assigned.length === 0) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-1 text-xs">
+                        <span className="opacity-60">👥 Назначен:</span>
+                        {assigned.map(u => (
+                          <span key={u.id} className={`px-2 py-0.5 rounded-full font-medium ${darkMode ? 'bg-gray-700 text-gray-200' : 'bg-pink-50 text-pink-600'}`}>{u.avatar} {u.name}</span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {/* Панель администратора: прогресс всех участников */}
+                  {isAdmin && (() => {
+                    const assignedIds: string[] = challenge.assignedTo || [];
+                    const hasAnyProgress = assignedIds.some(id => (challenge.progressByUser?.[id]?.progress ?? 0) > 0);
+                    const isOpen = expandedAdmins[challenge.id] ?? false;
+                    return (
+                      <div className={`mt-3 rounded-xl border ${darkMode ? 'border-gray-700 bg-gray-900/40' : 'border-gray-100 bg-gray-50'} p-3`}>
+                        <button onClick={() => setExpandedAdmins(prev => ({ ...prev, [challenge.id]: !isOpen }))}
+                          className="w-full flex items-center justify-between text-xs font-bold opacity-80 hover:opacity-100">
+                          <span>📊 Прогресс всех участников ({assignedIds.filter(id => challenge.progressByUser?.[id]?.completed).length}/{assignedIds.length} выполнили)</span>
+                          <span>{isOpen ? '▲' : '▼'}</span>
+                        </button>
+                        {isOpen && (
+                          <div className="mt-2 space-y-2">
+                            {assignedIds.length === 0 && <p className="text-xs opacity-50">Челлендж никому не назначен</p>}
+                            {assignedIds.map(id => {
+                              const u = users.find(x => x.id === id);
+                              const p = challenge.progressByUser?.[id] || { progress: 0, completed: false, rewardClaimed: false };
+                              const pct = Math.min(100, (p.progress / challenge.total) * 100);
+                              return (
+                                <div key={id} className="flex items-center gap-2 text-xs">
+                                  <span className="w-32 truncate shrink-0">{u ? `${u.avatar} ${u.name}` : id}</span>
+                                  <div className="flex-1"><ProgressBar percentage={pct} color={p.completed ? 'from-green-400 to-emerald-400' : 'from-yellow-400 to-orange-400'} /></div>
+                                  <span className="w-14 text-right shrink-0 opacity-70">{p.progress}/{challenge.total}</span>
+                                  <span className="w-20 text-right shrink-0">{p.completed ? (p.rewardClaimed ? '✅ Награда получена' : '🎁 Ждёт награды') : 'В процессе'}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {!isOpen && !hasAnyProgress && <p className="mt-1 text-[11px] opacity-50">Пока никто не начинал — нажмите, чтобы посмотреть назначенных участников</p>}
+                      </div>
+                    );
+                  })()}
                   {!isCompleted && (
                     <button onClick={() => { updateChallengeProgress(challenge.id, currentUser?.id || '', 1); if (userProgress.progress + 1 >= challenge.total) showToast('🎉 Челлендж выполнен!'); }}
                       className="mt-2 px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-lg text-xs font-bold">+1 Прогресс</button>
@@ -1393,18 +1442,18 @@ function SettingsView({
     }
     
     const isGlobal = selectedUserIds.length === 0;
+    const assignedTo: string[] = isGlobal ? users.filter(u => u.role === 'employee').map(u => u.id) : [...selectedUserIds];
     const challenge: Challenge = {
       id: Date.now().toString(),
-      userId: 'global', // Всегда создаем как глобальный, но с assignedTo для персональных
       title: newChallengeTitle,
       description: newChallengeDesc,
       emoji: newChallengeEmoji,
       xpReward: newChallengeXP,
-      progress: 0,
       total: newChallengeTotal,
       deadline: newChallengeDeadline || `${newChallengeType === 'daily' ? 'Сегодня' : newChallengeType === 'weekly' ? 'Конец недели' : 'Конец сезона'}`,
       type: newChallengeType,
-      assignedTo: isGlobal ? undefined : selectedUserIds,
+      assignedTo,
+      progressByUser: {}, // персональный прогресс каждого участника
     };
     
     console.log('Созданный объект челленджа:', challenge);
@@ -1657,20 +1706,25 @@ function SettingsView({
         )}
 
         <div className="space-y-2">
-          {challenges.map(challenge => (
-            <div key={challenge.id} className={`flex items-center gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+          {challenges.map(challenge => {
+            const assignedUsers = (challenge.assignedTo || []).map(id => users.find(u => u.id === id)).filter(Boolean) as User[];
+            const completedCount = (challenge.assignedTo || []).filter(id => challenge.progressByUser?.[id]?.completed).length;
+            return (
+            <div key={challenge.id} className={`flex items-start gap-3 p-3 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
               <span className="text-xl">{challenge.emoji}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm">{challenge.title}</div>
                 <div className="text-xs opacity-60">{challenge.description} • +{challenge.xpReward} 🪙 • {challenge.type}</div>
-                {challenge.assignedTo && challenge.assignedTo.length > 0 && (
-                  <div className="text-xs opacity-40">Назначен: {challenge.assignedTo.length} пользовател(ей)</div>
+                {assignedUsers.length > 0 && (
+                  <div className="text-xs opacity-60 mt-1">👥 Назначен: {assignedUsers.map(u => `${u.avatar} ${u.name}`).join(', ')}</div>
                 )}
+                <div className="text-xs opacity-40 mt-0.5">📊 Прогресс: выполнили {completedCount}/{assignedUsers.length} • сумма прогрессов {Object.values(challenge.progressByUser || {}).reduce((s: number, p: any) => s + (p?.progress || 0), 0)}</div>
               </div>
               <button onClick={() => { removeChallenge(challenge.id); showToast('Челлендж удалён'); }}
                 className={`p-1.5 rounded ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} text-red-500`}><Trash2 size={14} /></button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
