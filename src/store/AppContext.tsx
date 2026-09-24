@@ -282,29 +282,27 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   // Initialize state from localStorage
-  function makeCreator(): User {
-    return {
-      id: 'creator-1',
-      email: CREATOR_EMAIL,
-      password: CREATOR_PASSWORD,
-      name: 'Создатель',
-      avatar: '👑',
-      role: 'creator',
-      department: 'Управление',
-      level: 1,
-      xp: 0,
-      xpToNext: 1000,
-      streak: 0,
-      plan: 0,
-      fact: 0,
-      salesCoins: 0,
-      profileColor: 'pink',
-      achievements: [],
-      monthlyHistory: [],
-      purchasedPrizes: [],
-      createdAt: new Date().toISOString(),
-    };
-  }
+  const makeCreator = useCallback((): User => ({
+    id: 'creator-1',
+    email: CREATOR_EMAIL,
+    password: CREATOR_PASSWORD,
+    name: 'Создатель',
+    avatar: '👑',
+    role: 'creator',
+    department: 'Управление',
+    level: 1,
+    xp: 0,
+    xpToNext: 1000,
+    streak: 0,
+    plan: 0,
+    fact: 0,
+    salesCoins: 0,
+    profileColor: 'pink',
+    achievements: [],
+    monthlyHistory: [],
+    purchasedPrizes: [],
+    createdAt: new Date().toISOString(),
+  }), []);
 
   // Всегда читаем список пользователей из localStorage напрямую, чтобы не потерять
   // участников, зарегистрированных в другой вкладке/сессии (state может быть устаревшим)
@@ -312,32 +310,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const stored = loadFromStorage<User[]>('sq_users', []);
     const hasCreator = Array.isArray(stored) && stored.some(u => u.email === CREATOR_EMAIL);
     return hasCreator ? stored : [makeCreator(), ...stored];
-  }, []);
+  }, [makeCreator]);
 
-  const [users, setUsersState] = useState<User[]>(readStoredUsers);
+  const [users, setUsersState] = useState<User[]>(() => {
+    const initial = readStoredUsers();
+    // Если текущий пользователь есть в sq_current_user, но его нет в списке
+    // (например, его удалили в другой вкладке) — возвращаем его в список,
+    // чтобы он не «исчез» из команды.
+    const cur = loadFromStorage<User | null>('sq_current_user', null);
+    if (cur && !initial.some(u => u.id === cur.id)) return [...initial, cur];
+    return initial;
+  });
 
   // Мутация списка пользователей всегда выполняется поверх актуального снимка из
   // localStorage — иначе изменения (например, регистрации) из других вкладок/сессий
   // теряются, и новые участники не попадают в список «Управление командой».
   const setUsers = useCallback((updater: User[] | ((prev: User[]) => User[])) => {
     setUsersState(prev => {
+      // За базу берём актуальный state prev (в нём уже учтены изменения этой
+      // вкладки, например назначение админа), а пользователей из localStorage
+      // (другие вкладки/сессии) добавляем, если их ещё нет в списке. Иначе
+      // свежий снимок хранилища перезаписывал бы только что внесённые правки,
+      // и «Назначение администратора» не применялось до перезагрузки.
       const base = readStoredUsers();
+      for (const u of base) {
+        if (!prev.some(p => p.id === u.id)) prev = [...prev, u];
+      }
       const merged = typeof updater === 'function'
-        ? (updater as (prev: User[]) => User[])(base)
+        ? (updater as (prev: User[]) => User[])(prev)
         : updater;
-      // Пользователи, изменённые в этой вкладке (в prev), но ещё не сохранённые,
-      // имеют приоритет над снимком из хранилища
-      const map = new Map<string, User>();
-      for (const u of base) map.set(u.id, u);
-      for (const u of prev) map.set(u.id, u);
-      const reconciled = merged.map(u => map.get(u.id) ?? u);
-      return reconciled;
+      return merged;
     });
   }, [readStoredUsers]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return loadFromStorage<User | null>('sq_current_user', null);
   });
+
+  // Синхронизация currentUser с актуальным списком users: currentUser хранится
+  // отдельным снапшотом и при смене роли (promote/demote/updateUser/removeUser,
+  // в т.ч. из другой вкладки) обязан обновляться, иначе назначенный админ не
+  // получает права до перезахода, а удалённый пользователь остаётся «в сессии».
+  useEffect(() => {
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      const fresh = users.find(u => u.id === prev.id);
+      if (!fresh) return null;
+      if (JSON.stringify(fresh) !== JSON.stringify(prev)) return fresh;
+      return prev;
+    });
+  }, [users]);
 
   const [prizes, setPrizes] = useState<Prize[]>(() => loadFromStorage('sq_prizes', getDefaultPrizes()));
   const [challenges, setChallenges] = useState<Challenge[]>(() => loadFromStorage('sq_challenges', []));
@@ -492,13 +514,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers(prev => prev.filter(u => u.id !== id));
   }, []);
 
+  // Смена роли должна обновлять и currentUser (он хранится отдельно от users),
+  // иначе назначенный админ не получает права до перезахода, а у создателя
+  // пропадает доступ к «Управлению командой» после смены роли.
+  const changeUserRole = useCallback((id: string, role: 'admin' | 'employee') => {
+    setUsers(prev => prev.map(u => u.id === id && u.role !== 'creator' ? { ...u, role } : u));
+    setCurrentUser(prev => {
+      if (!prev || prev.id !== id || prev.role === 'creator') return prev;
+      const updated = { ...prev, role };
+      saveToStorage('sq_current_user', updated);
+      return updated;
+    });
+  }, [setUsers]);
+
   const promoteToAdmin = useCallback((id: string) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, role: 'admin' as const } : u));
-  }, []);
+    changeUserRole(id, 'admin');
+  }, [changeUserRole]);
 
   const demoteFromAdmin = useCallback((id: string) => {
-    setUsers(prev => prev.map(u => u.id === id && u.role !== 'creator' ? { ...u, role: 'employee' as const } : u));
-  }, []);
+    changeUserRole(id, 'employee');
+  }, [changeUserRole]);
 
   const updateDepartmentPlan = useCallback((data: Partial<DepartmentPlan>) => {
     setDepartmentPlan(prev => {
