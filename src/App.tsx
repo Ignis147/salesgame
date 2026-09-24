@@ -433,16 +433,18 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold mb-1">Привет, {currentUser.name}! 💖</h2>
             <p className="opacity-90 text-sm sm:text-base">Сегодня отличный день для новых побед!</p>
-            <div className="flex flex-wrap gap-4 mt-3">
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-                <div className="text-xs opacity-80">Значки</div>
-                <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
+            {!admin && (
+              <div className="flex flex-wrap gap-4 mt-3">
+                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                  <div className="text-xs opacity-80">Значки</div>
+                  <div className="font-bold text-lg">{currentUser.achievements.length} 🏅</div>
+                </div>
+                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                  <div className="text-xs opacity-80">Место</div>
+                  <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
+                </div>
               </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
-                <div className="text-xs opacity-80">Место</div>
-                <div className="font-bold text-lg">#{myRank || '-'} 📊</div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </motion.div>
@@ -488,7 +490,7 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
       )}
 
       {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div className={`grid grid-cols-1 ${admin ? '' : 'md:grid-cols-2'} gap-4 sm:gap-6`}>
         {/* Department Plan (visible to all) */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
           className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
@@ -509,7 +511,8 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           </div>
         </motion.div>
 
-        {/* Personal Plan */}
+        {/* Personal Plan (hidden for admins) */}
+        {!admin && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
           className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
           <div className="flex items-center justify-between mb-4">
@@ -547,17 +550,21 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
             </div>
           )}
         </motion.div>
+        )}
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats (hidden for admins) */}
+      {!admin && (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <StatCard emoji="🎯" label="До 110%" value={`${Math.max(0, 110 - personalPercent)}%`} color="from-pink-100 to-rose-100" darkColor="from-pink-900/30 to-rose-900/30" darkMode={darkMode} />
         <StatCard emoji="⭐" label="Значков" value={`${currentUser.achievements.length}`} color="from-amber-100 to-yellow-100" darkColor="from-amber-900/30 to-yellow-900/30" darkMode={darkMode} />
         <StatCard emoji="🪙" label="EAST Coins" value={currentUser.salesCoins.toLocaleString()} color="from-blue-100 to-cyan-100" darkColor="from-blue-900/30 to-cyan-900/30" darkMode={darkMode} />
         <StatCard emoji="📊" label="Место" value={`#${myRank || '-'}`} color="from-purple-100 to-violet-100" darkColor="from-purple-900/30 to-violet-900/30" darkMode={darkMode} />
       </div>
+      )}
 
-      {/* My Recent Achievements */}
+      {/* My Recent Achievements (hidden for admins) */}
+      {!admin && (
       <div className={`rounded-2xl p-5 sm:p-6 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
           <span className="text-purple-500">🏅</span>
@@ -577,6 +584,7 @@ function HomeView({ darkMode, admin, employees, departmentPlan, color, showToast
           </div>
         )}
       </div>
+      )}
 
       {/* My Purchased Prizes */}
       {currentUser.purchasedPrizes && currentUser.purchasedPrizes.length > 0 && (
