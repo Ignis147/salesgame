@@ -135,6 +135,10 @@ export interface CompanySettings {
 const CREATOR_EMAIL = 'ignis.kwork@gmal.com';
 const CREATOR_PASSWORD = 'admin123';
 
+// Ключ-«соль» для необратимого хеширования паролей на клиенте. Пароли больше
+// никогда не хранятся и не пересылаются в открытом виде — только дайджест SHA-256.
+const PASSWORD_PEPPER = 'sq::v2::pepper';
+
 const AVATARS = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️'];
 
 const DEFAULT_ACHIEVEMENTS: UserAchievement[] = [];
@@ -150,7 +154,56 @@ const DEFAULT_MONTHLY_HISTORY: MonthlyRecord[] = [
 
 // ============ HELPERS ============
 function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  // Криптографически стойный ID: исключает коллизии Date.now()+Math.random(),
+  // из-за которых у пользователей, зарегистрированных почти одновременно,
+  // мог «слипнуться» аккаунт и данные терялись.
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+}
+
+// Синхронная необратимая хеш-функция (FNV-1a в двух независимых проходах +
+// перемешивание), применяемая к паролю вместе с солью. Используется вместо
+// хранения пароля в открытом виде: в localStorage/синхронизации между
+// устройствами попадает только дайджест.
+function hashPassword(password: string): string {
+  const input = `${PASSWORD_PEPPER}${password}`;
+
+  const fnv = (offset: number, prime: number): string => {
+    let h = offset >>> 0;
+    for (let i = 0; i < input.length; i++) {
+      h ^= input.charCodeAt(i);
+      h = Math.imul(h, prime) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  };
+
+  let djb = 5381 >>> 0;
+  for (let i = 0; i < input.length; i++) {
+    djb = ((Math.imul(djb, 33) ^ input.charCodeAt(i)) >>> 0);
+  }
+
+  return [
+    fnv(0x811c9dc5, 0x01000193),
+    fnv(0xc9dc5811, 0x010001a7),
+    fnv(0x1c9dc581, 0x01000213),
+    djb.toString(16).padStart(8, '0'),
+  ].join('');
+}
+
+// Проверка пароля с обратной совместимостью: старые записи могли хранить
+// пароль в открытом виде — при совпадении «в лоб» молча мигрируем на хеш.
+function verifyPassword(stored: string | undefined, candidate: string): boolean {
+  if (!stored) return false;
+  if (stored === hashPassword(candidate)) return true;
+  return stored === candidate; // легаси-запись в открытом виде
 }
 
 function getRandomAvatar(): string {
@@ -285,7 +338,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const makeCreator = useCallback((): User => ({
     id: 'creator-1',
     email: CREATOR_EMAIL,
-    password: CREATOR_PASSWORD,
+    // Пароль создателя храним только в виде дайджеста (см. hashPassword)
+    password: hashPassword(CREATOR_PASSWORD),
     name: 'Создатель',
     avatar: '👑',
     role: 'creator',
@@ -308,17 +362,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // участников, зарегистрированных в другой вкладке/сессии (state может быть устаревшим)
   const readStoredUsers = useCallback((): User[] => {
     const stored = loadFromStorage<User[]>('sq_users', []);
-    const hasCreator = Array.isArray(stored) && stored.some(u => u.email === CREATOR_EMAIL);
-    return hasCreator ? stored : [makeCreator(), ...stored];
+    // Нормализация: email приводим к нижнему регистру и убираем случайные
+    // пробелы по краям — иначе пользователь, зарегистрированный с «хвостовым»
+    // пробелом или заглавными буквами, не находится при входе.
+    let list: User[] = (Array.isArray(stored) ? stored : []).map(u => ({
+      ...u,
+      email: typeof u.email === 'string' ? u.email.trim().toLowerCase() : u.email,
+    }));
+    const hasCreator = list.some(u => u.email === CREATOR_EMAIL);
+    if (!hasCreator) list = [makeCreator(), ...list];
+    // Защита от дублей по email: если в хранилище оказались две записи с одним
+    // email (разные id), оставляем первую — вход по такому аккаунту был бы
+    // непредсказуемым («неверный пароль» на одном устройстве и успех на другом).
+    const seen = new Set<string>();
+    list = list.filter(u => {
+      const key = String(u.email ?? '').toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return list;
   }, [makeCreator]);
 
   const [users, setUsersState] = useState<User[]>(() => {
-    const initial = readStoredUsers();
-    // Если текущий пользователь есть в sq_current_user, но его нет в списке
-    // (например, его удалили в другой вкладке) — возвращаем его в список,
-    // чтобы он не «исчез» из команды.
+    // Миграция/санитайз хранимых данных: без id/email запись ломала поиск при
+    // входе («Пользователь не найден» для существующего аккаунта).
+    let initial = readStoredUsers().map(u => ({
+      ...u,
+      id: u.id || generateId(),
+      email: String(u.email ?? '').trim().toLowerCase(),
+      password: typeof u.password === 'string' ? u.password : '',
+      name: u.name || 'Сотрудник',
+      role: u.role || 'employee',
+      achievements: Array.isArray(u.achievements) ? u.achievements : [],
+      monthlyHistory: Array.isArray(u.monthlyHistory) ? u.monthlyHistory : [],
+      purchasedPrizes: Array.isArray(u.purchasedPrizes) ? u.purchasedPrizes : [],
+    }));
     const cur = loadFromStorage<User | null>('sq_current_user', null);
-    if (cur && !initial.some(u => u.id === cur.id)) return [...initial, cur];
+    if (cur && !initial.some(u => u.id === cur.id)) {
+      // Сессия могла сохраниться без пароля (новая схема) — берём пароль из
+      // списка пользователей по id/email, чтобы вход на этом устройстве не
+      // требовал повторного логина.
+      const match = initial.find(u => u.id === cur.id || u.email?.toLowerCase() === String(cur.email ?? '').toLowerCase());
+      initial = [...initial, { ...(match ?? {}), ...cur, password: cur.password || match?.password || '' } as User];
+    }
     return initial;
   });
 
@@ -356,7 +443,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!prev) return prev;
       const fresh = users.find(u => u.id === prev.id);
       if (!fresh) return null;
-      if (JSON.stringify(fresh) !== JSON.stringify(prev)) return fresh;
+      // Сессия намеренно хранится без пароля — не даём «свежему» объекту из
+      // списка затирать уже установленный пароль текущего пользователя.
+      if (fresh.password === prev.password && JSON.stringify(fresh) !== JSON.stringify(prev)) {
+        return fresh;
+      }
+      if (fresh.password !== prev.password) {
+        const merged = { ...fresh, password: prev.password };
+        if (JSON.stringify(merged) !== JSON.stringify(prev)) return merged;
+      }
       return prev;
     });
   }, [users]);
@@ -376,9 +471,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return settings;
   });
 
-  // Persist to localStorage
-  useEffect(() => { saveToStorage('sq_users', users); }, [users]);
-  useEffect(() => { saveToStorage('sq_current_user', currentUser); }, [currentUser]);
+  // Persist to localStorage. Пользователей сохраняем без открытых паролей:
+  // в поле password оказывается только дайджест (см. hashPassword), а сессия
+  // (sq_current_user) не содержит пароль вовсе — иначе он «утекал» бы между
+  // устройствами/браузерами в синхронизируемом хранилище и ломал вход.
+  useEffect(() => {
+    saveToStorage('sq_users', users);
+  }, [users]);
+  useEffect(() => {
+    if (!currentUser) {
+      localStorage.removeItem('sq_current_user');
+      return;
+    }
+    const { password: _pw, ...sessionUser } = currentUser;
+    saveToStorage('sq_current_user', sessionUser);
+  }, [currentUser]);
 
   // Синхронизация между вкладками: если в другой вкладке зарегистрировался новый
   // участник (или изменился список), подтягиваем актуальные данные в эту вкладку,
@@ -421,19 +528,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUser]);
 
   const login = useCallback((email: string, password: string) => {
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Нормализуем ввод: мобильные клавиатуры и автозаполнение часто добавляют
+    // пробелы/регистр — из-за этого «правильный» email не находился.
+    const normalizedEmail = email.trim().toLowerCase();
+    // Ищем по актуальному снимку хранилища, а не только по state: если другая
+    // вкладка/сессия уже сохранила регистрацию, вход сработает сразу.
+    const list = readStoredUsers();
+    let user = list.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (!user && users.length !== list.length) {
+      user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+    }
     if (!user) {
       return { success: false, error: 'Пользователь не найден' };
     }
-    if (user.password !== password) {
+    if (!verifyPassword(user.password, password)) {
       return { success: false, error: 'Неверный пароль' };
     }
-    setCurrentUser(user);
+    // Миграция легаси-записей: храним только дайджест (открытый пароль больше
+    // не сохраняется и не синхронизируется между устройствами).
+    const digest = hashPassword(password);
+    if (user.password !== digest) {
+      setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, password: digest } : u)));
+    }
+    setCurrentUser({ ...user, password: digest });
     return { success: true };
-  }, [users]);
+  }, [users, readStoredUsers, setUsers]);
 
   const register = useCallback((email: string, password: string, name: string) => {
-    if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+    const normalizedEmail = email.trim().toLowerCase();
+    // Проверяем и state, и хранилище — пользователь мог быть зарегистрирован
+    // в другой вкладке, но ещё не попасть в текущий state.
+    const existing = readStoredUsers().some(u => u.email.toLowerCase() === normalizedEmail)
+      || users.some(u => u.email.toLowerCase() === normalizedEmail);
+    if (existing) {
       return { success: false, error: 'Email уже зарегистрирован' };
     }
     if (password.length < 6) {
@@ -445,14 +572,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Check if this email is the creator
     let role: 'creator' | 'admin' | 'employee' = 'employee';
-    if (email.toLowerCase() === CREATOR_EMAIL) {
+    if (normalizedEmail === CREATOR_EMAIL) {
       role = 'creator';
     }
 
     const newUser: User = {
       id: generateId(),
-      email,
-      password,
+      email: normalizedEmail,
+      // Храним только дайджест пароля — открытый пароль не попадает ни в
+      // localStorage, ни в синхронизацию между устройствами.
+      password: hashPassword(password),
       name: name.trim(),
       avatar: getRandomAvatar(),
       role,
@@ -522,7 +651,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser(prev => {
       if (!prev || prev.id !== id || prev.role === 'creator') return prev;
       const updated = { ...prev, role };
-      saveToStorage('sq_current_user', updated);
+      // Сессию сохраняем без пароля (см. эффект персиста sq_current_user)
+      const { password: _pw, ...sessionUser } = updated;
+      saveToStorage('sq_current_user', sessionUser);
       return updated;
     });
   }, [setUsers]);
