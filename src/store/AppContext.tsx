@@ -282,11 +282,8 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   // Initialize state from localStorage
-  const [users, setUsers] = useState<User[]>(() => {
-    const stored = loadFromStorage<User[]>('sq_users', []);
-    
-    // Создаём создателя по умолчанию
-    const creator: User = {
+  function makeCreator(): User {
+    return {
       id: 'creator-1',
       email: CREATOR_EMAIL,
       password: CREATOR_PASSWORD,
@@ -307,18 +304,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       purchasedPrizes: [],
       createdAt: new Date().toISOString(),
     };
-    
-    // Проверяем, есть ли создатель в сохранённых данных
-    const hasCreator = stored.some(u => u.email === CREATOR_EMAIL);
-    
-    if (hasCreator) {
-      // Если создатель есть, возвращаем сохранённых пользователей
-      return stored;
-    } else {
-      // Если создателя нет, добавляем его к сохранённым пользователям
-      return [creator, ...stored];
-    }
-  });
+  }
+
+  // Всегда читаем список пользователей из localStorage напрямую, чтобы не потерять
+  // участников, зарегистрированных в другой вкладке/сессии (state может быть устаревшим)
+  const readStoredUsers = useCallback((): User[] => {
+    const stored = loadFromStorage<User[]>('sq_users', []);
+    const hasCreator = Array.isArray(stored) && stored.some(u => u.email === CREATOR_EMAIL);
+    return hasCreator ? stored : [makeCreator(), ...stored];
+  }, []);
+
+  const [users, setUsersState] = useState<User[]>(readStoredUsers);
+
+  // Мутация списка пользователей всегда выполняется поверх актуального снимка из
+  // localStorage — иначе изменения (например, регистрации) из других вкладок/сессий
+  // теряются, и новые участники не попадают в список «Управление командой».
+  const setUsers = useCallback((updater: User[] | ((prev: User[]) => User[])) => {
+    setUsersState(prev => {
+      const base = readStoredUsers();
+      const merged = typeof updater === 'function'
+        ? (updater as (prev: User[]) => User[])(base)
+        : updater;
+      // Пользователи, изменённые в этой вкладке (в prev), но ещё не сохранённые,
+      // имеют приоритет над снимком из хранилища
+      const map = new Map<string, User>();
+      for (const u of base) map.set(u.id, u);
+      for (const u of prev) map.set(u.id, u);
+      const reconciled = merged.map(u => map.get(u.id) ?? u);
+      return reconciled;
+    });
+  }, [readStoredUsers]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return loadFromStorage<User | null>('sq_current_user', null);
@@ -342,6 +357,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Persist to localStorage
   useEffect(() => { saveToStorage('sq_users', users); }, [users]);
   useEffect(() => { saveToStorage('sq_current_user', currentUser); }, [currentUser]);
+
+  // Синхронизация между вкладками: если в другой вкладке зарегистрировался новый
+  // участник (или изменился список), подтягиваем актуальные данные в эту вкладку,
+  // иначе «Управление командой» не покажет новых участников до перезагрузки.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'sq_users') return;
+      setUsersState(readStoredUsers());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [readStoredUsers]);
   useEffect(() => { saveToStorage('sq_prizes', prizes); }, [prizes]);
   useEffect(() => { saveToStorage('sq_challenges', challenges); }, [challenges]);
   useEffect(() => { saveToStorage('sq_notifications', notifications); }, [notifications]);
