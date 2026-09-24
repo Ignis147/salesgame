@@ -1366,6 +1366,49 @@ function TeamView({ darkMode, users, currentUser, updateUser, removeUser, promot
 }
 
 // ============ SETTINGS VIEW (Admin only) ============
+// Готовые наборы эмодзи для выбора в форме (челленджи, призы, достижения)
+const EMOJI_SETS: { label: string; emojis: string[] }[] = [
+  { label: '🎯 Активность', emojis: ['🎯', '⚡', '🔥', '🚀', '💪', '🏃', '⏰', '📈', '💼', '🤝', '📞', '✉️', '🗣️', '🧠', '💡', '✅'] },
+  { label: '🏆 Награды', emojis: ['🏆', '🥇', '🥈', '🥉', '🎖️', '🏅', '⭐', '🌟', '✨', '👑', '💎', '🎯', '🔝', '💯', '🎉', '🥂'] },
+  { label: '🎁 Подарки', emojis: ['🎁', '🛍️', '🛒', '☕', '🍕', '🍰', '🎬', '🎧', '📱', '💳', '✈️', '🏖️', '🎟️', '🧸', '💐', '🍫'] },
+  { label: '😊 Эмоции', emojis: ['😊', '😎', '🤩', '😍', '🥳', '😂', '🙌', '👏', '💪', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤'] },
+  { label: '🐾 Животные', emojis: ['🦁', '🐯', '🦊', '🐺', '🦅', '🐬', '🦄', '🐝', '🐱', '🐶', '🐼', '🦉', '🐢', '🦋', '🌸', '🌻'] },
+];
+
+function EmojiPicker({ value, onChange, darkMode, ringColor = 'ring-pink-400' }: {
+  value: string;
+  onChange: (emoji: string) => void;
+  darkMode: boolean;
+  ringColor?: string;
+}) {
+  return (
+    <div className="mt-2 space-y-2">
+      {EMOJI_SETS.map((set) => (
+        <div key={set.label}>
+          <div className="text-[10px] opacity-50 mb-1">{set.label}</div>
+          <div className="grid grid-cols-8 gap-1">
+            {set.emojis.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onChange(emoji)}
+                title={emoji}
+                className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110 ${
+                  value === emoji
+                    ? `bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 ring-2 ${ringColor}`
+                    : darkMode ? 'bg-gray-600 hover:bg-gray-500' : 'bg-white hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SettingsView({ 
   darkMode, 
   showToast, 
@@ -1697,6 +1740,7 @@ function SettingsView({
                 <label className="text-xs opacity-60">Эмодзи</label>
                 <input type="text" value={newChallengeEmoji} onChange={e => setNewChallengeEmoji(e.target.value)}
                   className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-yellow-300`} />
+                <EmojiPicker value={newChallengeEmoji} onChange={setNewChallengeEmoji} darkMode={darkMode} ringColor="ring-yellow-400" />
               </div>
               <div>
                 <label className="text-xs opacity-60">Награда (EAST Coins)</label>
@@ -1804,6 +1848,7 @@ function SettingsView({
                 <label className="text-xs opacity-60">Эмодзи</label>
                 <input type="text" value={newPrizeEmoji} onChange={e => setNewPrizeEmoji(e.target.value)}
                   className={`w-full mt-1 px-3 py-2 rounded-lg border text-sm ${darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+                <EmojiPicker value={newPrizeEmoji} onChange={setNewPrizeEmoji} darkMode={darkMode} />
               </div>
               <div>
                 <label className="text-xs opacity-60">Название</label>
@@ -1910,6 +1955,7 @@ function SettingsView({
                 <label className="text-sm font-medium opacity-70">Эмодзи</label>
                 <input type="text" value={newAchievementEmoji} onChange={e => setNewAchievementEmoji(e.target.value)} placeholder="🏆"
                   className={`w-full mt-1 px-4 py-2.5 rounded-xl border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-pink-300`} />
+                <EmojiPicker value={newAchievementEmoji} onChange={setNewAchievementEmoji} darkMode={darkMode} />
               </div>
               <div>
                 <label className="text-sm font-medium opacity-70">Стоимость (EAST Coins)</label>
