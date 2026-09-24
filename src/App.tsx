@@ -4,7 +4,7 @@ import ReactConfetti from 'react-confetti';
 import { AppProvider, useAppState, CREATOR_EMAIL, type User, type UserAchievement, type AchievementTemplate, type Challenge } from './store/AppContext';
 import { rarityColors } from './data/mockData';
 import {
-  Home, Trophy, Gift, BarChart3, Users, Bell, Settings, Moon, Sun,
+  Home, Trophy, Gift, BarChart3, Users, Bell, Settings, SlidersHorizontal, Moon, Sun,
   Target, TrendingUp, Crown, Sparkles, Star,
   Medal, Award, Zap, DollarSign,
   Menu, X, Check, Lock, Trash2, Edit3, Plus, Save, LogOut, Shield, Image as ImageIcon
@@ -305,7 +305,7 @@ function AppContent() {
                 <>
                   <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => setCurrentView('analytics')} />
                   <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
-                  <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
+                  <SidebarItem icon={<SlidersHorizontal size={20} />} label="Управление" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
                   <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => setCurrentView('profile')} />
                 </>
               )}
@@ -335,7 +335,7 @@ function AppContent() {
                       <>
                         <SidebarItem icon={<BarChart3 size={20} />} label="Аналитика" active={currentView === 'analytics'} onClick={() => { setCurrentView('analytics'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Users size={20} />} label="Команда" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setShowMobileMenu(false); }} />
-                        <SidebarItem icon={<Settings size={20} />} label="Настройки" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
+                        <SidebarItem icon={<SlidersHorizontal size={20} />} label="Управление" active={currentView === 'settings'} onClick={() => { setCurrentView('settings'); setShowMobileMenu(false); }} />
                         <SidebarItem icon={<Settings size={20} />} label="Профиль" active={currentView === 'profile'} onClick={() => { setCurrentView('profile'); setShowMobileMenu(false); }} />
                       </>
                     )}
@@ -1575,7 +1575,7 @@ function SettingsView({
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2"><span className="text-gray-500">⚙️</span> Настройки</h2>
+      <h2 className="text-2xl font-bold flex items-center gap-2"><SlidersHorizontal size={24} /> Управление</h2>
 
       {/* Company Branding */}
       <div className={`rounded-2xl p-5 border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-pink-100'} shadow-sm`}>
