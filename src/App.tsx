@@ -53,29 +53,36 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 
 // ============ AUTH SCREEN ============
 function AuthScreen({ darkMode }: { darkMode: boolean }) {
-  const { login, register, companySettings } = useAppState();
+  const { login, register, companySettings, authLoading } = useAppState();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const color = COLOR_MAP[companySettings.mainColor] || COLOR_MAP.pink;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Вход/регистрация асинхронные: запросы идут во встроенный Supabase Auth.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (isLogin) {
-      const result = login(email, password);
-      if (!result.success) setError(result.error || 'Ошибка входа');
-    } else {
-      const result = register(email, password, name);
-      if (result.success) {
-        // После успешной регистрации сразу показываем главную страницу
-        // currentUser будет установлен в AppContext, и AuthScreen перерендерится
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      if (isLogin) {
+        const result = await login(email, password);
+        if (!result.success) setError(result.error || 'Ошибка входа');
+        // При успехе currentUser установится в AppContext — экран сам скроется.
       } else {
-        setError(result.error || 'Ошибка регистрации');
+        const result = await register(email, password, name);
+        if (!result.success) {
+          setError(result.error || 'Ошибка регистрации');
+        }
+        // При успехе currentUser установится в AppContext — экран сам скроется.
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -136,9 +143,10 @@ function AuthScreen({ darkMode }: { darkMode: boolean }) {
 
           <button
             type="submit"
-            className={`w-full py-3 bg-gradient-to-r ${color.gradient} text-white rounded-xl font-bold hover:shadow-lg transition-all`}
+            disabled={submitting || authLoading}
+            className={`w-full py-3 bg-gradient-to-r ${color.gradient} text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-60`}
           >
-            {isLogin ? 'Войти' : 'Зарегистрироваться'}
+            {authLoading ? 'Загрузка…' : submitting ? 'Подождите…' : (isLogin ? 'Войти' : 'Зарегистрироваться')}
           </button>
         </form>
 
