@@ -27,13 +27,53 @@ create table if not exists public.profiles (
 );
 
 -- 2) Общие данные приложения (призы, челленджи, уведомления, планы, настройки).
+-- Единая строка id='global' — источник истины для ВСЕХ участников проекта:
+-- «план продаж», «бренд месяца», «акция месяца», «важное объявление»,
+-- «архив планов», призы, челленджи и шаблоны достижений одинаковы у всех,
+-- изменения любого администратора сохраняются здесь и через Realtime
+-- мгновенно видны всем остальным.
 create table if not exists public.app_state (
   id text primary key default 'global',
+  prizes jsonb not null default '[]'::jsonb,
+  challenges jsonb not null default '[]'::jsonb,
+  notifications jsonb not null default '[]'::jsonb,
+  department_plan jsonb not null default '{}'::jsonb,
+  plan_archives jsonb not null default '[]'::jsonb,
+  achievement_templates jsonb not null default '[]'::jsonb,
+  company_settings jsonb not null default '{}'::jsonb,
+  -- устаревшая колонка "data" оставлена для совместимости со старыми данными
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
+-- Миграция для уже существующей таблицы (безопасно повторять).
+alter table public.app_state add column if not exists prizes jsonb not null default '[]'::jsonb;
+alter table public.app_state add column if not exists challenges jsonb not null default '[]'::jsonb;
+alter table public.app_state add column if not exists notifications jsonb not null default '[]'::jsonb;
+alter table public.app_state add column if not exists department_plan jsonb not null default '{}'::jsonb;
+alter table public.app_state add column if not exists plan_archives jsonb not null default '[]'::jsonb;
+alter table public.app_state add column if not exists achievement_templates jsonb not null default '[]'::jsonb;
+alter table public.app_state add column if not exists company_settings jsonb not null default '{}'::jsonb;
+
+-- Строка глобального состояния по умолчанию.
+insert into public.app_state (id) values ('global') on conflict (id) do nothing;
+
 -- 3) Row Level Security.
+-- Realtime: добавляем таблицу общих данных в публикацию supabase_realtime
+-- (идемпотентно — если таблица уже в публикации, пропускаем).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'app_state'
+  ) then
+    begin
+      alter publication supabase_realtime add table public.app_state;
+    exception when undefined_object then
+      create publication supabase_realtime for table public.app_state;
+    end;
+  end if;
+end $$;
 alter table public.profiles enable row level security;
 alter table public.app_state enable row level security;
 
