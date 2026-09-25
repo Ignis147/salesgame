@@ -294,6 +294,82 @@ function authErrorMessage(err: { message?: string; status?: number } | null, fal
   return err.message || fallback;
 }
 
+// ============ SHARED (GLOBAL) APP STATE IN SUPABASE ============
+// Общие данные проекта — «план продаж», «бренд месяца», «акция месяца»,
+// «важное объявление», «архив планов», челленджи, призы и шаблоны достижений —
+// хранятся в единой серверной таблице public.app_state (одна строка id='global',
+// jsonb-колонки по типам данных). Это источник истины для ВСЕХ участников:
+// изменения любого администратора мгновенно видны всем остальным
+// (через подписку Supabase Realtime на таблицу app_state).
+// localStorage используется только как офлайн-кэш / страховка от потери данных.
+export const GLOBAL_STATE_ID = 'global';
+
+interface GlobalStateRow {
+  prizes: Prize[];
+  challenges: Challenge[];
+  notifications: Notification[];
+  department_plan: DepartmentPlan;
+  plan_archives: MonthlyPlanArchive[];
+  achievement_templates: AchievementTemplate[];
+  company_settings: CompanySettings;
+}
+
+function globalStateToRow(s: GlobalStateRow): Record<string, unknown> {
+  return {
+    id: GLOBAL_STATE_ID,
+    prizes: s.prizes,
+    challenges: s.challenges,
+    notifications: s.notifications,
+    department_plan: s.department_plan,
+    plan_archives: s.plan_archives,
+    achievement_templates: s.achievement_templates,
+    company_settings: s.company_settings,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// Миграция старых данных из localStorage: если админ уже что-то настроил
+// локально (до появления серверного хранилища), эти значения становятся
+// общими для всех участников при первой синхронизации.
+function migrateLegacyLocalStorage(s: GlobalStateRow): void {
+  try {
+    const legacyDept = loadFromStorage<Partial<DepartmentPlan>>('sq_dept_plan', {});
+    if (legacyDept && typeof legacyDept === 'object') {
+      if (legacyDept.brandOfMonth !== undefined) s.department_plan.brandOfMonth = String(legacyDept.brandOfMonth);
+      if (legacyDept.promoOfMonth !== undefined) s.department_plan.promoOfMonth = String(legacyDept.promoOfMonth);
+      if (legacyDept.importantAnnouncements !== undefined) s.department_plan.importantAnnouncements = String(legacyDept.importantAnnouncements);
+      if (typeof legacyDept.total === 'number' && legacyDept.total > 0) s.department_plan.total = legacyDept.total;
+    }
+    const legacyArchives = loadFromStorage<MonthlyPlanArchive[]>('sq_plan_archives', []);
+    if (Array.isArray(legacyArchives) && legacyArchives.length > 0) {
+      const known = new Set(s.plan_archives.map(a => a.id));
+      s.plan_archives = [...s.plan_archives, ...legacyArchives.filter(a => a && !known.has(a.id))];
+    }
+    const legacyAchievements = loadFromStorage<AchievementTemplate[]>('sq_achievements', []);
+    if (Array.isArray(legacyAchievements) && legacyAchievements.length > 0) {
+      const known = new Set(s.achievement_templates.map(a => a.id));
+      s.achievement_templates = [...s.achievement_templates, ...legacyAchievements.filter(a => a && !known.has(a.id))];
+    }
+    const legacyChallenges = loadFromStorage<Challenge[]>('sq_challenges', []);
+    if (Array.isArray(legacyChallenges) && legacyChallenges.length > 0) {
+      const known = new Set(s.challenges.map(c => c.id));
+      s.challenges = [...s.challenges, ...legacyChallenges.filter(c => c && !known.has(c.id))];
+    }
+    const legacyPrizes = loadFromStorage<Prize[]>('sq_prizes', []);
+    if (Array.isArray(legacyPrizes) && legacyPrizes.length > 0) {
+      const known = new Set(s.prizes.map(p => p.id));
+      s.prizes = [...s.prizes, ...legacyPrizes.filter(p => p && !known.has(p.id))];
+    }
+    const legacyNotifs = loadFromStorage<Notification[]>('sq_notifications', []);
+    if (Array.isArray(legacyNotifs) && legacyNotifs.length > 0) {
+      const known = new Set(s.notifications.map(n => n.id));
+      s.notifications = [...s.notifications, ...legacyNotifs.filter(n => n && !known.has(n.id))];
+    }
+  } catch {
+    // ignore migration errors
+  }
+}
+
 // ============ DEFAULT DATA ============
 function getDefaultPrizes(): Prize[] {
   return [
@@ -567,9 +643,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return settings;
   });
 
-  // Персист общих (не связанных с авторизацией) данных приложения.
-  // ВАЖНО: пользователи и сессия больше НЕ сохраняются в localStorage —
-  // их источниками истины являются Supabase Auth и таблица public.profiles.
+  // Кэш общих данных в localStorage (только для офлайна / миграции).
   useEffect(() => { saveToStorage('sq_prizes', prizes); }, [prizes]);
   useEffect(() => { saveToStorage('sq_challenges', challenges); }, [challenges]);
   useEffect(() => { saveToStorage('sq_notifications', notifications); }, [notifications]);
@@ -577,6 +651,172 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage('sq_plan_archives', planArchives); }, [planArchives]);
   useEffect(() => { saveToStorage('sq_achievements', achievementTemplates); }, [achievementTemplates]);
   useEffect(() => { saveToStorage('sq_settings', companySettings); }, [companySettings]);
+
+  // ============ SYNC OF SHARED (GLOBAL) DATA WITH SUPABASE ============
+  // Источник истины для «плана продаж», «бренда месяца», «акции месяца»,
+  // «важного объявления», «архива планов», челленджей, призов и достижений —
+  // серверная таблица public.app_state (строка id='global'). Любое изменение,
+  // внесённое любым администратором, сохраняется на сервер и через Realtime
+  // мгновенно рассылается всем остальным участникам проекта.
+
+  // Флаг: актуальные общие данные уже загружены с сервера хотя бы раз.
+  const globalLoadedRef = useRef(false);
+  // Сериализованное состояние последней строки, загруженной/отправленной на
+  // сервер — нужно, чтобы не перезаписывать сервер собственными же данными и
+  // не зациклить realtime-обновления.
+  const lastPushedGlobalRef = useRef<string>('');
+  const globalSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currentGlobalSnapshot = useCallback((): GlobalStateRow => ({
+    prizes,
+    challenges,
+    notifications,
+    department_plan: departmentPlan,
+    plan_archives: planArchives,
+    achievement_templates: achievementTemplates,
+    company_settings: companySettings,
+  }), [prizes, challenges, notifications, departmentPlan, planArchives, achievementTemplates, companySettings]);
+
+  // Применение строки app_state из Supabase к локальному состоянию.
+  const applyGlobalRow = useCallback((row: Record<string, unknown> | null | undefined) => {
+    if (!row) return;
+    const defaultsDept = getDefaultDepartmentPlan();
+    const defaultsSettings = getDefaultSettings();
+    const dp = (row.department_plan && typeof row.department_plan === 'object')
+      ? { ...defaultsDept, ...(row.department_plan as DepartmentPlan) } : defaultsDept;
+    const cs = (row.company_settings && typeof row.company_settings === 'object')
+      ? { ...defaultsSettings, ...(row.company_settings as CompanySettings) } : defaultsSettings;
+    if (cs.name === 'SalesQuest') cs.name = 'EastAsia';
+
+    setPrizes(Array.isArray(row.prizes) && (row.prizes as Prize[]).length > 0 ? row.prizes as Prize[] : getDefaultPrizes());
+    setChallenges(Array.isArray(row.challenges) ? row.challenges as Challenge[] : []);
+    setNotifications(Array.isArray(row.notifications) ? row.notifications as Notification[] : []);
+    setDepartmentPlan(dp);
+    setPlanArchives(Array.isArray(row.plan_archives) ? row.plan_archives as MonthlyPlanArchive[] : []);
+    setAchievementTemplates(Array.isArray(row.achievement_templates) ? row.achievement_templates as AchievementTemplate[] : []);
+    setCompanySettings(cs);
+    globalLoadedRef.current = true;
+    lastPushedGlobalRef.current = JSON.stringify(globalStateToRow({
+      prizes: Array.isArray(row.prizes) && (row.prizes as Prize[]).length > 0 ? row.prizes as Prize[] : getDefaultPrizes(),
+      challenges: Array.isArray(row.challenges) ? row.challenges as Challenge[] : [],
+      notifications: Array.isArray(row.notifications) ? row.notifications as Notification[] : [],
+      department_plan: dp,
+      plan_archives: Array.isArray(row.plan_archives) ? row.plan_archives as MonthlyPlanArchive[] : [],
+      achievement_templates: Array.isArray(row.achievement_templates) ? row.achievement_templates as AchievementTemplate[] : [],
+      company_settings: cs,
+    }));
+  }, []);
+
+  // Начальная загрузка общих данных с сервера (после входа — RLS требует
+  // authenticated). Если строки ещё нет — создаём её из локальных значений
+  // (в т.ч. мигрированных из старого localStorage), чтобы они стали общими.
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_state')
+          .select('*')
+          .eq('id', GLOBAL_STATE_ID)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) {
+          console.error('Не удалось загрузить общие данные из Supabase:', error.message);
+          return;
+        }
+        if (data) {
+          applyGlobalRow(data as Record<string, unknown>);
+        } else {
+          // Первый запуск: публикуем локальные (мигрированные) настройки как общие.
+          const initial = currentGlobalSnapshot();
+          migrateLegacyLocalStorage(initial);
+          const row = globalStateToRow(initial);
+          lastPushedGlobalRef.current = JSON.stringify(row);
+          const { error: upErr } = await supabase.from('app_state').upsert(row);
+          if (upErr) {
+            console.error('Не удалось создать общие данные в Supabase:', upErr.message);
+            lastPushedGlobalRef.current = '';
+          } else {
+            globalLoadedRef.current = true;
+            // Применяем смигрированные значения и к текущему клиенту.
+            setPrizes(initial.prizes);
+            setChallenges(initial.challenges);
+            setNotifications(initial.notifications);
+            setDepartmentPlan(initial.department_plan);
+            setPlanArchives(initial.plan_archives);
+            setAchievementTemplates(initial.achievement_templates);
+            setCompanySettings(initial.company_settings);
+          }
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки общих данных:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  // Отправка изменений общих данных на сервер (дебаунс 350 мс объединяет
+  // частые обновления в один запрос). Отправляем только после того, как
+  // серверное состояние было получено — иначе есть риск затереть чужие данные.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!globalLoadedRef.current) return;
+    const snapshot = currentGlobalSnapshot();
+    // План отдела (total/current/percentage) пересчитывается из профилей на
+    // каждом клиенте — это производные величины, игнорируем их при сравнении,
+    // чтобы не создавать лишних записей на сервер.
+    const stripVolatile = (s: GlobalStateRow) => JSON.stringify(globalStateToRow({
+      ...s,
+      department_plan: { ...s.department_plan, total: 0, current: 0, percentage: 0 },
+    }));
+    const serialized = stripVolatile(snapshot);
+    if (serialized === lastPushedGlobalRef.current) return;
+    if (globalSyncTimerRef.current) clearTimeout(globalSyncTimerRef.current);
+    globalSyncTimerRef.current = setTimeout(() => {
+      lastPushedGlobalRef.current = serialized;
+      supabase.from('app_state').upsert(globalStateToRow(snapshot)).then(({ error }) => {
+        if (error) {
+          console.error('Не удалось сохранить общие данные в Supabase:', error.message);
+          lastPushedGlobalRef.current = '';
+        }
+      });
+    }, 350);
+    return () => { if (globalSyncTimerRef.current) clearTimeout(globalSyncTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prizes, challenges, notifications, departmentPlan.brandOfMonth, departmentPlan.promoOfMonth,
+      departmentPlan.importantAnnouncements, departmentPlan.month, departmentPlan.year, departmentPlan.lastMonth,
+      planArchives, achievementTemplates, companySettings, currentUser]);
+
+  // Realtime: мгновенно получаем изменения общих данных от других участников.
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      const channel = supabase
+        .channel(`app_state_${GLOBAL_STATE_ID}`)
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'app_state', filter: `id=eq.${GLOBAL_STATE_ID}` },
+          (payload: { eventType?: string; new?: Record<string, unknown> }) => {
+            if (payload.eventType === 'DELETE') return;
+            const row = payload.new;
+            if (!row) return;
+            // Игнорируем эхо собственных записей (сверка без volatile-полей).
+            const strip = (r: Record<string, unknown>) => {
+              const dp = (r.department_plan ?? {}) as Partial<DepartmentPlan>;
+              return JSON.stringify({ ...r, department_plan: { ...dp, total: 0, current: 0, percentage: 0 } });
+            };
+            if (lastPushedGlobalRef.current && strip(row) === lastPushedGlobalRef.current) return;
+            applyGlobalRow(row);
+          }
+        )
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+    } catch {
+      return undefined;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   // Recalculate department plan when users change
   useEffect(() => {
