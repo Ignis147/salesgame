@@ -142,7 +142,6 @@ export const CREATOR_EMAIL = 'ignis.kwork@gmail.com';
 // Пароль создателя больше не хранится в коде: аккаунт ignis.kwork@gmail.com
 // регистрируется через Supabase Auth (email + пароль), а роль creator
 // назначается автоматически (см. supabase/schema.sql → handle_new_user).
-export const CREATOR_PASSWORD = '';
 
 const AVATARS = ['👩‍💼', '👩‍🦰', '👩‍🦱', '💁‍♀️', '🧕', '👱‍♀️', '👩', '🧑‍💼', '👩‍🔬', '🧝‍♀️', '🦸‍♀️', '🧙‍♀️'];
 
@@ -542,41 +541,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return currentUser.role === 'creator' || currentUser.role === 'admin';
   }, [currentUser]);
 
-  const login = useCallback((email: string, password: string) => {
+  // ============ AUTH ACTIONS (Supabase Auth: email + пароль) ============
+
+  // Вход: проверка логина/пароля выполняется сервером Supabase (GoTrue).
+  // В браузере не хранится ничего, кроме JWT-сессии, которую держит supabase-js.
+  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     // Нормализуем ввод: мобильные клавиатуры и автозаполнение часто добавляют
     // пробелы/регистр — из-за этого «правильный» email не находился.
     const normalizedEmail = email.trim().toLowerCase();
-    // Ищем по актуальному снимку хранилища, а не только по state: если другая
-    // вкладка/сессия уже сохранила регистрацию, вход сработает сразу.
-    const list = readStoredUsers();
-    let user = list.find(u => u.email.toLowerCase() === normalizedEmail);
-    if (!user && users.length !== list.length) {
-      user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (!normalizedEmail || !password) {
+      return { success: false, error: 'Введите email и пароль' };
     }
-    if (!user) {
-      return { success: false, error: 'Пользователь не найден' };
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+    if (error) {
+      return { success: false, error: authErrorMessage(error, 'Ошибка сервера. Попробуйте ещё раз') };
     }
-    if (!verifyPassword(user.password, password)) {
-      return { success: false, error: 'Неверный пароль' };
+    if (data.session?.user) {
+      // Загружаем (или создаём) профиль в public.profiles и делаем его текущим.
+      await establishSession(data.session.user);
     }
-    // Миграция легаси-записей: храним только дайджест (открытый пароль больше
-    // не сохраняется и не синхронизируется между устройствами).
-    const digest = hashPassword(password);
-    if (user.password !== digest) {
-      setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, password: digest } : u)));
-    }
-    setCurrentUser({ ...user, password: digest });
     return { success: true };
-  }, [users, readStoredUsers, setUsers]);
+  }, [establishSession]);
 
-  const register = useCallback((email: string, password: string, name: string) => {
+  // Регистрация: создаём аккаунт во встроенном Supabase Auth (email + пароль),
+  // профиль — в таблице public.profiles. Пароль в localStorage не сохраняется.
+  const register = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }> => {
     const normalizedEmail = email.trim().toLowerCase();
-    // Проверяем и state, и хранилище — пользователь мог быть зарегистрирован
-    // в другой вкладке, но ещё не попасть в текущий state.
-    const existing = readStoredUsers().some(u => u.email.toLowerCase() === normalizedEmail)
-      || users.some(u => u.email.toLowerCase() === normalizedEmail);
-    if (existing) {
-      return { success: false, error: 'Email уже зарегистрирован' };
+    if (!normalizedEmail) {
+      return { success: false, error: 'Введите email' };
     }
     if (password.length < 6) {
       return { success: false, error: 'Пароль должен быть минимум 6 символов' };
@@ -585,45 +580,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Введите имя' };
     }
 
-    // Check if this email is the creator
-    let role: 'creator' | 'admin' | 'employee' = 'employee';
-    if (normalizedEmail === CREATOR_EMAIL) {
-      role = 'creator';
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: { name: name.trim(), avatar: getRandomAvatar() },
+      },
+    });
+    if (error) {
+      return { success: false, error: authErrorMessage(error, 'Ошибка сервера. Попробуйте ещё раз') };
     }
 
-    const newUser: User = {
-      id: generateId(),
-      email: normalizedEmail,
-      // Храним только дайджест пароля — открытый пароль не попадает ни в
-      // localStorage, ни в синхронизацию между устройствами.
-      password: hashPassword(password),
-      name: name.trim(),
-      avatar: getRandomAvatar(),
-      role,
-      department: 'Отдел продаж',
-      level: 1,
-      xp: 0,
-      xpToNext: 1000,
-      streak: 1,
-      plan: 500000,
-      fact: 0,
-      salesCoins: 100,
-      profileColor: 'pink',
-      achievements: [...DEFAULT_ACHIEVEMENTS],
-      monthlyHistory: DEFAULT_MONTHLY_HISTORY.map(r => ({ ...r, fact: 0, percentage: 0 })),
-      purchasedPrizes: [],
-      createdAt: new Date().toISOString(),
-    };
+    // Если в проекте Supabase включено подтверждение email, сессия может
+    // отсутствовать — просим подтвердить почту, затем войти.
+    if (!data.session) {
+      return {
+        success: false,
+        needsConfirmation: true,
+        error: 'Регистрация прошла! Проверьте почту и подтвердите адрес, затем войдите.',
+      };
+    }
 
-    setUsers(prev => [...prev, newUser]);
-    
-    // После регистрации всегда делаем нового пользователя текущим
-    setCurrentUser(newUser);
+    // Сессия есть — регистрируем профиль и входим сразу.
+    if (data.user) {
+      await establishSession(data.user);
+    }
 
-    // Add welcome notification
+    // Приветственное уведомление новому сотруднику.
     const welcomeNotif: Notification = {
       id: generateId(),
-      userId: newUser.id,
+      userId: data.user?.id ?? '',
       title: 'Добро пожаловать!',
       message: `Рады видеть вас в ${companySettings.name}! 🎉`,
       emoji: '👋',
@@ -633,45 +619,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [welcomeNotif, ...prev]);
 
     return { success: true };
-  }, [users, companySettings.name]);
+  }, [companySettings.name, establishSession]);
 
+  // Повторная отправка письма подтверждения (актуально, если в проекте
+  // включено подтверждение email).
+  const resendConfirmation = useCallback(async (email: string): Promise<{ success: boolean; error?: string }> => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { success: false, error: 'Введите email' };
+    }
+    const { error } = await supabase.auth.resend({ type: 'signup', email: normalizedEmail });
+    if (error) {
+      return { success: false, error: authErrorMessage(error, 'Ошибка сервера. Попробуйте ещё раз') };
+    }
+    return { success: true };
+  }, []);
+
+  // Выход: завершаем сессию на стороне Supabase; onAuthStateChange (событие
+  // SIGNED_OUT) дополнительно сбросит состояние.
   const logout = useCallback(() => {
+    void supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem('sq_current_user');
+    setUsersState([]);
   }, []);
 
   const updateCurrentUser = useCallback((data: Partial<User>) => {
     if (!currentUser) return;
     const updated = { ...currentUser, ...data };
     setCurrentUser(updated);
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
+    setUsersState(prev => prev.map(u => u.id === currentUser.id ? updated : u));
   }, [currentUser]);
 
   const updateUser = useCallback((id: string, data: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
+    setUsersState(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
     if (currentUser?.id === id) {
       setCurrentUser(prev => prev ? { ...prev, ...data } : prev);
     }
   }, [currentUser]);
 
   const removeUser = useCallback((id: string) => {
-    setUsers(prev => prev.filter(u => u.id !== id));
+    setUsersState(prev => prev.filter(u => u.id !== id));
+    // Удаляем профиль из Supabase (аккаунт Auth может остаться — удаление
+    // пользователя Auth требует service-role ключа на сервере).
+    supabase.from('profiles').delete().eq('id', id).then(({ error }) => {
+      if (error) console.error('Не удалось удалить профиль из Supabase:', error.message);
+    });
   }, []);
 
   // Смена роли должна обновлять и currentUser (он хранится отдельно от users),
   // иначе назначенный админ не получает права до перезахода, а у создателя
   // пропадает доступ к «Управлению командой» после смены роли.
   const changeUserRole = useCallback((id: string, role: 'admin' | 'employee') => {
-    setUsers(prev => prev.map(u => u.id === id && u.role !== 'creator' ? { ...u, role } : u));
+    setUsersState(prev => prev.map(u => {
+      if (u.id !== id || u.role === 'creator') return u;
+      const updated = { ...u, role };
+      syncProfile(updated); // сохраняем роль в Supabase (public.profiles)
+      return updated;
+    }));
     setCurrentUser(prev => {
       if (!prev || prev.id !== id || prev.role === 'creator') return prev;
-      const updated = { ...prev, role };
-      // Сессию сохраняем без пароля (см. эффект персиста sq_current_user)
-      const { password: _pw, ...sessionUser } = updated;
-      saveToStorage('sq_current_user', sessionUser);
-      return updated;
+      return { ...prev, role };
     });
-  }, [setUsers]);
+  }, [syncProfile]);
 
   const promoteToAdmin = useCallback((id: string) => {
     changeUserRole(id, 'admin');
@@ -775,7 +784,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!challenge || !userProgress || !userProgress.completed || userProgress.rewardClaimed) return;
 
     // Начисляем награду только этому пользователю
-    setUsers(usersPrev => usersPrev.map(u => {
+    setUsersState(usersPrev => usersPrev.map(u => {
       if (u.id !== userId) return u;
       return { ...u, salesCoins: u.salesCoins + challenge.xpReward };
     }));
@@ -846,7 +855,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Reset current month plan for next month
     employees.forEach(emp => {
-      setUsers(prev => prev.map(u => 
+      setUsersState(prev => prev.map(u => 
         u.id === emp.id ? { ...u, plan: 0, fact: 0 } : u
       ));
     });
@@ -877,7 +886,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let grantedAchievement: UserAchievement | null = null;
 
     // Find user and add achievement
-    setUsers(prev => prev.map(u => {
+    setUsersState(prev => prev.map(u => {
       if (u.id === userId) {
         // Check if user already has this achievement
         const alreadyHas = u.achievements.some(ach => ach.id === achievementId || ach.name === template.name);
@@ -934,6 +943,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentUser,
       users,
       isAuthenticated: !!currentUser,
+      authLoading,
+      resendConfirmation,
       login,
       register,
       logout,
@@ -986,4 +997,3 @@ export function useAppState() {
   return ctx;
 }
 
-export { CREATOR_EMAIL, CREATOR_PASSWORD };
