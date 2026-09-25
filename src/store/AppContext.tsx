@@ -242,6 +242,21 @@ function rowToUser(row: Record<string, unknown>): User {
   };
 }
 
+// Чтение id пользователя из активной JWT-сессии Supabase (синхронно).
+// Используется для мгновенного восстановления авторизованного состояния
+// при обновлении страницы — до того, как профиль догрузится из Supabase.
+function supabaseUserIdFromSession(): string | null {
+  try {
+    const raw = localStorage.getItem('sb-izhycodgxrnophnmemwo-auth-token');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const userId = parsed?.currentSession?.user?.id ?? parsed?.session?.user?.id ?? null;
+    return typeof userId === 'string' ? userId : null;
+  } catch {
+    return null;
+  }
+}
+
 // Обратная конвертация: User -> строка profiles (для upsert).
 function userToRow(u: User): Record<string, unknown> {
   return {
@@ -392,14 +407,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Регистрация и вход полностью переведены на встроенный Supabase Auth
   // (email + пароль). Пароли не хранятся в браузере: сессию (JWT) держит
   // сам supabase-js, а игровые данные пользователей — в таблице profiles.
+  //
+  // Кэш профиля по id активной JWT-сессии: при обновлении страницы профиль
+  // ещё не догружен из Supabase, но UI должен остаться авторизованным и не
+  // потерять последние изменения. Как только establishSession загрузит
+  // актуальный профиль из public.profiles — currentUser подхватится сам.
+  const sessionUserId = supabaseUserIdFromSession();
+  const profileCacheKey = sessionUserId ? `sq_profile_${sessionUserId}` : null;
   const [users, setUsersState] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() =>
+    profileCacheKey ? loadFromStorage<User | null>(profileCacheKey, null) : null
+  );
   const [authLoading, setAuthLoading] = useState(true);
   const usersRef = useRef<User[]>([]);
   useEffect(() => { usersRef.current = users; }, [users]);
 
   // Загрузка всех профилей из Supabase (данные команды хранятся на сервере).
-  const refreshProfiles = useCallback(async (): Promise<User[]> => {
+  // Опциональный keepIds — id «локальных» пользователей (например, только что
+  // добавленного админом), которых ещё нет в ответе сервера: они сохраняются
+  // в списке, чтобы не исчезнуть из UI до подтверждения записи в БД.
+  const refreshProfiles = useCallback(async (keepIds?: string[]): Promise<User[]> => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -409,7 +436,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return usersRef.current;
     }
     const list = (data ?? []).map(rowToUser);
-    setUsersState(list);
+    setUsersState(prev => {
+      const serverIds = new Set(list.map(u => u.id));
+      const pending = prev.filter(u => keepIds?.includes(u.id) && !serverIds.has(u.id));
+      return [...list, ...pending];
+    });
     return list;
   }, []);
 
@@ -454,7 +485,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     setCurrentUser(profile);
-    await refreshProfiles();
+    await refreshProfiles([profile.id]);
   }, [upsertProfile, refreshProfiles]);
 
   // Подписка на состояние авторизации Supabase + восстановление сессии
@@ -493,6 +524,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return prev;
     });
   }, [users]);
+
+  // Каждое изменение текущего профиля сохраняется в Supabase (таблица
+  // public.profiles) — все поля: name, avatar, role, department, level, xp,
+  // xp_to_next, streak, plan, fact, sales_coins, profile_color, achievements,
+  // monthly_history, purchased_prizes, created_at. Дебаунс 400 мс объединяет
+  // частые обновления в один запрос. Дополнительно профиль кэшируется в
+  // localStorage по id сессии — это страховка от потери несохранённых
+  // изменений при мгновенном обновлении страницы (источник истины — Supabase:
+  // при следующем входе данные подтягиваются из public.profiles).
+  const lastSyncedRef = useRef<string>('');
+  useEffect(() => {
+    if (!currentUser) {
+      lastSyncedRef.current = '';
+      if (profileCacheKey) saveToStorage(profileCacheKey, null);
+      return;
+    }
+    if (profileCacheKey) saveToStorage(profileCacheKey, currentUser);
+    const serialized = JSON.stringify(userToRow(currentUser));
+    if (serialized === lastSyncedRef.current) return;
+    const timer = setTimeout(() => {
+      lastSyncedRef.current = serialized;
+      supabase.from('profiles').upsert(userToRow(currentUser)).then(({ error }) => {
+        if (error) console.error('Не удалось сохранить профиль в Supabase:', error.message);
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [currentUser, profileCacheKey]);
 
   const [prizes, setPrizes] = useState<Prize[]>(() => loadFromStorage('sq_prizes', getDefaultPrizes()));
   const [challenges, setChallenges] = useState<Challenge[]>(() => loadFromStorage('sq_challenges', []));
@@ -636,12 +694,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Выход: завершаем сессию на стороне Supabase; onAuthStateChange (событие
-  // SIGNED_OUT) дополнительно сбросит состояние.
+  // SIGNED_OUT) дополнительно сбросит состояние. Кэш профиля в localStorage
+  // удаляется, чтобы при следующем входе данные брались только из Supabase.
   const logout = useCallback(() => {
     void supabase.auth.signOut();
     setCurrentUser(null);
     setUsersState([]);
-  }, []);
+    if (profileCacheKey) saveToStorage(profileCacheKey, null);
+  }, [profileCacheKey]);
 
   const updateCurrentUser = useCallback((data: Partial<User>) => {
     if (!currentUser) return;
@@ -651,11 +711,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [currentUser]);
 
   const updateUser = useCallback((id: string, data: Partial<User>) => {
-    setUsersState(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
+    setUsersState(prev => prev.map(u => {
+      if (u.id !== id) return u;
+      const updated = { ...u, ...data };
+      // Изменения, внесённые админом (план, факт, имя, отдел, роль), сразу
+      // сохраняются в Supabase — иначе они исчезнут при обновлении страницы.
+      syncProfile(updated);
+      return updated;
+    }));
     if (currentUser?.id === id) {
       setCurrentUser(prev => prev ? { ...prev, ...data } : prev);
     }
-  }, [currentUser]);
+  }, [currentUser, syncProfile]);
 
   const removeUser = useCallback((id: string) => {
     setUsersState(prev => prev.filter(u => u.id !== id));
@@ -783,10 +850,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const userProgress = challenge?.progressByUser?.[userId];
     if (!challenge || !userProgress || !userProgress.completed || userProgress.rewardClaimed) return;
 
-    // Начисляем награду только этому пользователю
+    // Начисляем награду только этому пользователю и сохраняем её в Supabase,
+    // иначе купленные/заработанные монеты исчезнут при обновлении страницы.
     setUsersState(usersPrev => usersPrev.map(u => {
       if (u.id !== userId) return u;
-      return { ...u, salesCoins: u.salesCoins + challenge.xpReward };
+      const updated = { ...u, salesCoins: u.salesCoins + challenge.xpReward };
+      syncProfile(updated);
+      return updated;
     }));
     if (currentUser?.id === userId) {
       setCurrentUser(prev => prev ? { ...prev, salesCoins: prev.salesCoins + challenge.xpReward } : prev);
@@ -805,7 +875,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       };
     }));
-  }, [challenges, currentUser]);
+  }, [challenges, currentUser, syncProfile]);
 
   const assignChallenge = useCallback((challengeId: string, userIds: string[]) => {
     setChallenges(prev => prev.map(c => 
@@ -910,6 +980,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           salesCoins: u.salesCoins + template.cost,
         };
 
+        // Сохраняем достижение и монеты в Supabase — иначе они исчезнут
+        // при обновлении страницы или перезаходе на аккаунт.
+        syncProfile(updatedUser);
+
         // Also update currentUser if it's the same user
         if (currentUser?.id === userId) {
           setCurrentUser(updatedUser);
@@ -936,7 +1010,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
 
     return grantedAchievement;
-  }, [achievementTemplates, currentUser]);
+  }, [achievementTemplates, currentUser, syncProfile]);
 
   return (
     <AppContext.Provider value={{
